@@ -1,4 +1,4 @@
-package slicktour
+package slicktour.example
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -7,7 +7,7 @@ import akka.stream.{ActorMaterializer, Materializer}
 
 import scala.concurrent.ExecutionContext
 
-object SlickTourApp {
+object AkkaHttpApp {
   def main(args: Array[String]): Unit = {
     implicit val actorSystem: ActorSystem = ActorSystem("slick-tour")
     implicit val executionContext: ExecutionContext = actorSystem.dispatcher

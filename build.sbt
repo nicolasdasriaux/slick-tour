@@ -1,4 +1,6 @@
-import sbt.Keys.version
+import scala.sys.process._
+
+lazy val resetDb = TaskKey[Unit]("resetDb")
 
 lazy val root = (project in file("."))
   .settings(
@@ -12,6 +14,7 @@ lazy val root = (project in file("."))
       "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.5",
       "com.typesafe.akka" %% "akka-stream" % "2.5.19",
       "com.typesafe.akka" %% "akka-actor" % "2.5.19",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.5.19",
 
       "com.typesafe.slick" %% "slick" % "3.2.3",
       "com.typesafe.slick" %% "slick-hikaricp" % "3.2.3",
@@ -21,8 +24,15 @@ lazy val root = (project in file("."))
       "org.postgresql" % "postgresql" % "42.2.5",
 
       "com.typesafe" % "config" % "1.3.3",
-      "com.github.kxbmap" %% "configs" % "0.4.4"
+      "com.github.kxbmap" %% "configs" % "0.4.4",
+
+      "ch.qos.logback" % "logback-classic" % "1.2.3"
     ),
 
-    reStart / mainClass := Some("slicktour.SlickTourApp")
+    reStart / mainClass := Some("slicktour.ecommerce.api.ECommerceApiApp"),
+
+      resetDb := {
+      reStop.value
+      "bash db/ecommerce-reset-db.sh".!
+    },
   )
