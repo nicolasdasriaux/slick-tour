@@ -10,5 +10,5 @@ class Customers(tag: Tag) extends Table[Customer](tag, "customers") {
 }
 
 object Customers {
-  def table = TableQuery[Customers]
+  val table = TableQuery[Customers]
 }

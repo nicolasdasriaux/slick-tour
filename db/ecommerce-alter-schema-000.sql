@@ -10,5 +10,10 @@ CREATE TABLE "customers" (
   "last_name"  VARCHAR   NOT NULL
 );
 
+CREATE TABLE "items" (
+  "id"   BIGSERIAL NOT NULL PRIMARY KEY,
+  "name" VARCHAR   NOT NULL
+);
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "ecommerce" TO "ecommerceapi";
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA "ecommerce" TO "ecommerceapi";

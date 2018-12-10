@@ -4,7 +4,12 @@
 
 SET SEARCH_PATH = "ecommerce";
 
-INSERT INTO "customers" (first_name, last_name) VALUES ('Victor', 'Hugo');
-INSERT INTO "customers" (first_name, last_name) VALUES ('Honoré', 'de Balzac');
-INSERT INTO "customers" (first_name, last_name) VALUES ('René', 'Char');
-INSERT INTO "customers" (first_name, last_name) VALUES ('Antoine', 'de Saint-Exupéry');
+INSERT INTO "customers" ("first_name", "last_name") VALUES ('Antoine', 'Camis');
+INSERT INTO "customers" ("first_name", "last_name") VALUES ('Alain', 'Gide');
+INSERT INTO "customers" ("first_name", "last_name") VALUES ('Arthur', 'Char');
+INSERT INTO "customers" ("first_name", "last_name") VALUES ('Marie', 'Sand');
+
+INSERT INTO "items" ("name") VALUES ('Pen');
+INSERT INTO "items" ("name") VALUES ('Desk');
+INSERT INTO "items" ("name") VALUES ('Ink');
+INSERT INTO "items" ("name") VALUES ('Paper');
