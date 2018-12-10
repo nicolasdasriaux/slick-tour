@@ -31,7 +31,7 @@ lazy val root = (project in file("."))
 
     reStart / mainClass := Some("slicktour.ecommerce.api.ECommerceApiApp"),
 
-      resetDb := {
+    resetDb := {
       reStop.value
       "bash db/ecommerce-reset-db.sh".!
     },
