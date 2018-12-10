@@ -1,7 +1,7 @@
 package slicktour.example
 
 import com.typesafe.config.ConfigFactory
-import org.slf4j.{Logger, LoggerFactory}
+import com.typesafe.scalalogging.Logger
 import slick.basic.DatabaseConfig
 import slick.jdbc.JdbcProfile
 import slicktour.ecommerce.db.ExtendedPostgresProfile.api._
@@ -13,7 +13,7 @@ import scala.concurrent.{Await, Future}
 import scala.util.Failure
 
 object SlickApp {
-  private val logger: Logger = LoggerFactory.getLogger(SlickApp.getClass)
+  private val logger = Logger(SlickApp.getClass)
 
   def main(args: Array[String]): Unit = {
     val config = ConfigFactory.load()
@@ -47,6 +47,8 @@ object SlickApp {
         case failure @ Failure(exception) =>
           logger.error("Exception occurred", exception)
           failure
+
+        case success => success
       }
       .transformWith(_ => database.shutdown)
 
