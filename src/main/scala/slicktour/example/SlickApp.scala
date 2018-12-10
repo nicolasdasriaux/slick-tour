@@ -23,22 +23,22 @@ object SlickApp {
     val selectCustomersQuery: Query[Customers, Customer, Seq] = Customers.table.filter(_.firstName.like("A%"))
     val selectItemQuery: Query[Items, Item, Seq] = Items.table.filter(_.id === 1l)
 
-    val customersDBIO: DBIO[Seq[Customer]] = selectCustomersQuery.result
-    val maybeItemDBIO: DBIO[Option[Item]] = selectItemQuery.result.headOption
+    val selectCustomersDBIO: DBIO[Seq[Customer]] = selectCustomersQuery.result
+    val selectItemDBIO: DBIO[Option[Item]] = selectItemQuery.result.headOption
 
     val program: DBIO[(Seq[Customer], Option[Item])] = for {
-      customers <- customersDBIO
-      items <- maybeItemDBIO
-    } yield (customers, items)
+      customers <- selectCustomersDBIO
+      maybeItem <- selectItemDBIO
+    } yield (customers, maybeItem)
 
     val eventualResult: Future[(Seq[Customer], Option[Item])] = database.run(program)
 
     val eventualCompletion: Future[Unit] = for {
-        (customers, items) <- eventualResult
+        (customers, maybeItem) <- eventualResult
 
         _ = {
-          println(s"customers=$customers")
-          println(s"items=$items")
+          logger.info(s"customers=$customers")
+          logger.info(s"item=$maybeItem")
         }
       } yield ()
 

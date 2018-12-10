@@ -4,7 +4,7 @@
 
 SET SEARCH_PATH = "ecommerce";
 
-INSERT INTO "customers" ("first_name", "last_name") VALUES ('Antoine', 'Camis');
+INSERT INTO "customers" ("first_name", "last_name") VALUES ('Antoine', 'Camus');
 INSERT INTO "customers" ("first_name", "last_name") VALUES ('Alain', 'Gide');
 INSERT INTO "customers" ("first_name", "last_name") VALUES ('Arthur', 'Char');
 INSERT INTO "customers" ("first_name", "last_name") VALUES ('Marie', 'Sand');
