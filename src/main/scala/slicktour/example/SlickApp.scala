@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.Logger
 import slick.basic.DatabaseConfig
 import slick.jdbc.JdbcProfile
 import slicktour.ecommerce.db.ExtendedPostgresProfile.api._
-import slicktour.ecommerce.db.{Customer, Customers, Item, Items}
+import slicktour.ecommerce.db._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
@@ -23,22 +23,30 @@ object SlickApp {
     val selectCustomersQuery: Query[Customers, Customer, Seq] = Customers.table.filter(_.firstName.like("A%"))
     val selectItemQuery: Query[Items, Item, Seq] = Items.table.filter(_.id === 1l)
 
+    val selectOrdersAndOrderLinesQuery: Query[(Orders, Rep[Option[OrderLines]]), (Order, Option[OrderLine]), Seq]  =
+      (Orders.table joinLeft OrderLines.table on (_.id === _.orderId))
+        .sortBy({ case (order, maybeOrderLine) => (order.id, maybeOrderLine.map(_.id))})
+
     val selectCustomersDBIO: DBIO[Seq[Customer]] = selectCustomersQuery.result
     val selectItemDBIO: DBIO[Option[Item]] = selectItemQuery.result.headOption
+    val selectOrdersAndOrderLinesDBIO: DBIO[Seq[(Order, Option[OrderLine])]] = selectOrdersAndOrderLinesQuery.result
 
-    val program: DBIO[(Seq[Customer], Option[Item])] = for {
+
+    val program: DBIO[(Seq[Customer], Option[Item], Seq[(Order, Option[OrderLine])])] = for {
       customers <- selectCustomersDBIO
       maybeItem <- selectItemDBIO
-    } yield (customers, maybeItem)
+      ordersAndOrderLines <- selectOrdersAndOrderLinesDBIO
+    } yield (customers, maybeItem, ordersAndOrderLines)
 
-    val eventualResult: Future[(Seq[Customer], Option[Item])] = database.run(program)
+    val eventualResult: Future[(Seq[Customer], Option[Item], Seq[(Order, Option[OrderLine])])] = database.run(program)
 
     val eventualCompletion: Future[Unit] = for {
-        (customers, maybeItem) <- eventualResult
+        (customers, maybeItem, ordersAndOrderLines) <- eventualResult
 
         _ = {
           logger.info(s"customers=$customers")
           logger.info(s"item=$maybeItem")
+          logger.info(s"ordersAndOrderLines=$ordersAndOrderLines")
         }
       } yield ()
 
