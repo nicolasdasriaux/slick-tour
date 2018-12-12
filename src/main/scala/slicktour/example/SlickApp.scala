@@ -20,35 +20,91 @@ object SlickApp {
     val databaseConfig = DatabaseConfig.forConfig[JdbcProfile]("ecommerce.database", config)
     val database = databaseConfig.db
 
-    val selectCustomersQuery: Query[Customers, Customer, Seq] = Customers.table.filter(_.firstName.like("A%"))
-    val selectItemQuery: Query[Items, Item, Seq] = Items.table.filter(_.id === 1l)
+    // -----------------------------------------------------------------------------------------------------------------
+    // Queries
+    // -----------------------------------------------------------------------------------------------------------------
+    val selectCustomersQuery: Query[Customers, Customer, Seq] =
+      Customers.table
+        .filter(_.firstName.like("A%"))
+
+    val selectItemQuery: Query[Items, Item, Seq] =
+      Items.table
+        .filter(_.id === 1l)
 
     val selectOrdersAndOrderLinesQuery: Query[(Orders, Rep[Option[OrderLines]]), (Order, Option[OrderLine]), Seq]  =
       (Orders.table joinLeft OrderLines.table on (_.id === _.orderId))
         .sortBy({ case (order, maybeOrderLine) => (order.id, maybeOrderLine.map(_.id))})
 
-    val selectCustomersDBIO: DBIO[Seq[Customer]] = selectCustomersQuery.result
-    val selectItemDBIO: DBIO[Option[Item]] = selectItemQuery.result.headOption
-    val selectOrdersAndOrderLinesDBIO: DBIO[Seq[(Order, Option[OrderLine])]] = selectOrdersAndOrderLinesQuery.result
+    // -----------------------------------------------------------------------------------------------------------------
+    // DBIOs
+    // -----------------------------------------------------------------------------------------------------------------
+    val selectCustomersDBIO: DBIO[Seq[Customer]] =
+      selectCustomersQuery.result
 
+    val selectItemDBIO: DBIO[Option[Item]] =
+      selectItemQuery.result.headOption
 
-    val program: DBIO[(Seq[Customer], Option[Item], Seq[(Order, Option[OrderLine])])] = for {
+    val selectOrdersAndOrderLinesDBIO: DBIO[Seq[(Order, Option[OrderLine])]] =
+      selectOrdersAndOrderLinesQuery.result
+
+    val insertCustomerDBIO: DBIO[Int] =
+      Customers.table += Customer(None, "April", "Jones")
+
+    val insertCustomersDBIO: DBIO[Seq[Customer]] =
+      (Customers.table returning Customers.table) ++= Seq(
+        Customer(None, "Anders", "Petersen"),
+        Customer(None, "Pedro", "Sanchez"),
+        Customer(None, "Natacha", "Borodine")
+      )
+
+    val updateCustomerDBIO: DBIO[Int] =
+      Customers.table
+        .filter(c => c.firstName === "Anders" && c.lastName === "Petersen")
+        .map(c => (c.firstName, c.lastName))
+        .update("Anton", "Peterson")
+
+    val deleteCustomerDBIO: DBIO[Int] =
+      Customers.table
+        .filter(_.firstName === "April")
+        .delete
+
+    // -----------------------------------------------------------------------------------------------------------------
+    // Combining DBIOs
+    // -----------------------------------------------------------------------------------------------------------------
+    case class Result(
+                       insertedCustomers: Seq[Customer],
+                       customers: Seq[Customer],
+                       maybeItem: Option[Item],
+                       ordersAndOrderLines: Seq[(Order, Option[OrderLine])]
+                     )
+
+    val program1: DBIO[Result] = for {
+      _ <- insertCustomerDBIO
+      insertedCustomers <- insertCustomersDBIO
+      _ <- updateCustomerDBIO
+      _ <- deleteCustomerDBIO
       customers <- selectCustomersDBIO
       maybeItem <- selectItemDBIO
       ordersAndOrderLines <- selectOrdersAndOrderLinesDBIO
-    } yield (customers, maybeItem, ordersAndOrderLines)
+    } yield Result(insertedCustomers, customers, maybeItem, ordersAndOrderLines)
 
-    val eventualResult: Future[(Seq[Customer], Option[Item], Seq[(Order, Option[OrderLine])])] = database.run(program)
 
+    // -----------------------------------------------------------------------------------------------------------------
+    // Running DBIO
+    // -----------------------------------------------------------------------------------------------------------------
+    val eventualResult: Future[Result] = database.run(program1)
+
+    // -----------------------------------------------------------------------------------------------------------------
+    // Handling future run result
+    // -----------------------------------------------------------------------------------------------------------------
     val eventualCompletion: Future[Unit] = for {
-        (customers, maybeItem, ordersAndOrderLines) <- eventualResult
-
-        _ = {
-          logger.info(s"customers=$customers")
-          logger.info(s"item=$maybeItem")
-          logger.info(s"ordersAndOrderLines=$ordersAndOrderLines")
-        }
-      } yield ()
+      Result(insertedCustomers, customers, maybeItem, ordersAndOrderLines) <- eventualResult
+    } yield {
+      logger.info(s"insertedCustomers=$insertedCustomers")
+      logger.info(s"customers=$customers")
+      logger.info(s"maybeItem=$maybeItem")
+      logger.info(s"ordersAndOrderLines=$ordersAndOrderLines")
+    }
 
     val eventualSafeCompletion = eventualCompletion
       .transform {
@@ -61,5 +117,37 @@ object SlickApp {
       .transformWith(_ => database.shutdown)
 
     Await.result(eventualSafeCompletion, 5.seconds)
+  }
+}
+
+object Marketing {
+  def customerOrderCount(customerId: Long): DBIO[Int] =
+    Orders.table
+      .filter(_.customerId === customerId)
+      .size
+      .result
+
+  def insertFreeWelcomeOrder(customerId: Long): DBIO[Unit] =
+    for {
+      orderId <- (Orders.table returning Orders.table.map(_.id)) += Order(None, 1)
+      _ <- OrderLines.table += OrderLine(None, orderId, 1, 1)
+    } yield ()
+
+  def insertFreeWelcomeOrderForCustomer(customerId: Long): DBIO[Boolean] =
+    for {
+      orderCount <- customerOrderCount(customerId)
+
+      freeWelcomeOrder <-
+        if (orderCount == 0)
+          insertFreeWelcomeOrder(1l).map(_ => true)
+        else
+          DBIO.successful(false)
+
+    } yield freeWelcomeOrder
+
+  def insertFreeWelcomeOrderForCustomers(customerIds: Seq[Long]): DBIO[Seq[Boolean]] = {
+    val seqOfDbio: Seq[DBIO[Boolean]] = customerIds.map(insertFreeWelcomeOrderForCustomer)
+    val dbioOfSeq: DBIO[Seq[Boolean]] = DBIO.sequence(seqOfDbio)
+    dbioOfSeq
   }
 }
