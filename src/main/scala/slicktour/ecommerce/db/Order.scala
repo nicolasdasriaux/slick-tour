@@ -1,3 +1,5 @@
 package slicktour.ecommerce.db
 
-case class Order(id: Option[Long], customerId: Long)
+import java.time.LocalDate
+
+case class Order(id: Option[Long], customerId: Long, date: LocalDate)

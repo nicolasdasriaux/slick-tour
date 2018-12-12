@@ -1,5 +1,7 @@
 package slicktour.example
 
+import java.time.LocalDate
+
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
 import slick.basic.DatabaseConfig
@@ -120,7 +122,7 @@ object SlickApp {
   }
 }
 
-object Marketing {
+object ConditionsAndLoops {
   def customerOrderCount(customerId: Long): DBIO[Int] =
     Orders.table
       .filter(_.customerId === customerId)
@@ -129,7 +131,7 @@ object Marketing {
 
   def insertFreeWelcomeOrder(customerId: Long): DBIO[Unit] =
     for {
-      orderId <- (Orders.table returning Orders.table.map(_.id)) += Order(None, 1)
+      orderId <- (Orders.table returning Orders.table.map(_.id)) += Order(None, 1, LocalDate.now())
       _ <- OrderLines.table += OrderLine(None, orderId, 1, 1)
     } yield ()
 
@@ -138,10 +140,8 @@ object Marketing {
       orderCount <- customerOrderCount(customerId)
 
       freeWelcomeOrder <-
-        if (orderCount == 0)
-          insertFreeWelcomeOrder(1l).map(_ => true)
-        else
-          DBIO.successful(false)
+        if (orderCount == 0) insertFreeWelcomeOrder(1l).map(_ => true)
+        else DBIO.successful(false)
 
     } yield freeWelcomeOrder
 

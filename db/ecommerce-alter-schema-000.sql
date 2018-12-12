@@ -19,8 +19,9 @@ CREATE TABLE "items"
 
 CREATE TABLE "orders"
 (
-  "id"         BIGSERIAL NOT NULL PRIMARY KEY,
-  "customer_id" BIGINT    NOT NULL
+  "id"          BIGSERIAL NOT NULL PRIMARY KEY,
+  "customer_id" BIGINT    NOT NULL,
+  "date"        DATE      NOT NULL
 );
 
 CREATE TABLE "order_lines"

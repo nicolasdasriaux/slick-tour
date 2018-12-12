@@ -20,15 +20,15 @@ VALUES ('Pen'),
        ('Knife'),
        ('Plate');
 
-INSERT INTO "orders" ("customer_id")
-VALUES (1),
+INSERT INTO "orders" ("customer_id", "date")
+VALUES (1, date '2018-01-01'),
 
-       (2),
-       (2),
+       (2, date '2018-02-01'),
+       (2, date '2018-02-02'),
 
-       (3),
-       (3),
-       (3);
+       (3, date '2018-03-01'),
+       (3, date '2018-03-02'),
+       (3, date '2018-03-03');
 
 INSERT INTO "order_lines" ("order_id", "item_id", "quantity")
 VALUES (1, 1, 1),
