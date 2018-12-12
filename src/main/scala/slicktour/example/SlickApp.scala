@@ -175,30 +175,30 @@ object Combining {
 }
 
 object ConditionsAndLoops {
-  def customerOrderCount(customerId: Long): DBIO[Int] =
+  def orderCountForCustomer(customerId: Long): DBIO[Int] =
     Orders.table
       .filter(_.customerId === customerId)
       .size
       .result
 
-  def insertFreeWelcomeOrder(customerId: Long): DBIO[Unit] =
+  def insertFreeWelcomeOrderForCustomer(customerId: Long): DBIO[Unit] =
     for {
       orderId <- (Orders.table returning Orders.table.map(_.id)) += Order(None, 1, LocalDate.now())
       _ <- OrderLines.table += OrderLine(None, orderId, 1, 1)
     } yield ()
 
-  def insertFreeWelcomeOrderForCustomer(customerId: Long): DBIO[Boolean] =
+  def insertFwoWhenInactiveForCustomer(customerId: Long): DBIO[Boolean] =
     for {
-      orderCount <- customerOrderCount(customerId)
+      orderCount <- orderCountForCustomer(customerId)
 
       freeWelcomeOrder <-
-        if (orderCount == 0) insertFreeWelcomeOrder(customerId).map(_ => true)
+        if (orderCount == 0) insertFreeWelcomeOrderForCustomer(customerId).map(_ => true)
         else DBIO.successful(false)
 
     } yield freeWelcomeOrder
 
-  def insertFreeWelcomeOrderForCustomers(customerIds: Seq[Long]): DBIO[Seq[Boolean]] = {
-    val seqOfDbio: Seq[DBIO[Boolean]] = customerIds.map(insertFreeWelcomeOrderForCustomer)
+  def insertFwoWhenInactiveForCustomers(customerIds: Seq[Long]): DBIO[Seq[Boolean]] = {
+    val seqOfDbio: Seq[DBIO[Boolean]] = customerIds.map(insertFwoWhenInactiveForCustomer)
     val dbioOfSeq: DBIO[Seq[Boolean]] = DBIO.sequence(seqOfDbio)
     dbioOfSeq
   }
