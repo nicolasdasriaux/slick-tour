@@ -122,6 +122,58 @@ object SlickApp {
   }
 }
 
+object Combining {
+  object Example1 {
+    case class Result(customer: Customer, order: Order)
+
+    object MapAndFlatMap {
+      def findOrderAndCustomer(orderId: Long): DBIO[Result] =
+        Orders.table.filter(_.id === orderId).result.head
+          .flatMap { order =>
+            Customers.table.filter(_.id === order.customerId).result.head
+              .map { customer =>
+                Result(customer, order)
+              }
+          }
+    }
+
+    object ForComprehension {
+      def findOrderAndCustomer(orderId: Long): DBIO[Result] =
+        for {
+          order <- Orders.table.filter(_.id === orderId).result.head
+          customer <- Customers.table.filter(_.id === order.customerId).result.head
+        } yield Result(customer, order)
+    }
+  }
+
+  object Example2 {
+    case class Result(customer: Customer, order: Order, orderLines: Seq[OrderLine])
+
+    object MapAndFlatMap {
+      def findOrderAndCustomer(orderId: Long): DBIO[Result] =
+        Orders.table.filter(_.id === orderId).result.head
+          .flatMap { order =>
+            Customers.table.filter(_.id === order.customerId).result.head
+              .flatMap { customer =>
+                OrderLines.table.filter(_.orderId === order.id).result
+                  .map { orderLines =>
+                    Result(customer, order, orderLines)
+                  }
+              }
+          }
+    }
+
+    object ForComprehension {
+      def findOrderAndCustomer(orderId: Long): DBIO[Result] =
+        for {
+          order <- Orders.table.filter(_.id === orderId).result.head
+          customer <- Customers.table.filter(_.id === order.customerId).result.head
+          orderLines <- OrderLines.table.filter(_.orderId === order.id).result
+        } yield Result(customer, order, orderLines)
+    }
+  }
+}
+
 object ConditionsAndLoops {
   def customerOrderCount(customerId: Long): DBIO[Int] =
     Orders.table
@@ -140,7 +192,7 @@ object ConditionsAndLoops {
       orderCount <- customerOrderCount(customerId)
 
       freeWelcomeOrder <-
-        if (orderCount == 0) insertFreeWelcomeOrder(1l).map(_ => true)
+        if (orderCount == 0) insertFreeWelcomeOrder(customerId).map(_ => true)
         else DBIO.successful(false)
 
     } yield freeWelcomeOrder
