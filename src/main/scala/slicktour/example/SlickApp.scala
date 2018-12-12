@@ -25,6 +25,8 @@ object SlickApp {
     // -----------------------------------------------------------------------------------------------------------------
     // Queries
     // -----------------------------------------------------------------------------------------------------------------
+
+    // Filtering (where)
     val selectCustomersQuery: Query[Customers, Customer, Seq] =
       Customers.table
         .filter(_.firstName.like("A%"))
@@ -32,6 +34,17 @@ object SlickApp {
     val selectItemQuery: Query[Items, Item, Seq] =
       Items.table
         .filter(_.id === 1l)
+
+    // Mapping (select)
+    val selectFirstNameAndLastNameForCustomerQuery: Query[(Rep[String], Rep[String]), (String, String), Seq] =
+      Customers.table
+        .filter(_.id =!= 1l)
+        .map(c => (c.firstName, c.lastName))
+
+    val selectCustomerFullNameQuery: Query[Rep[String], String, Seq] =
+      Customers.table
+        .filter(_.firstName.startsWith("A"))
+        .map(c => c.firstName ++ " " ++ c.lastName)
 
     val selectOrdersAndOrderLinesQuery: Query[(Orders, Rep[Option[OrderLines]]), (Order, Option[OrderLine]), Seq]  =
       (Orders.table joinLeft OrderLines.table on (_.id === _.orderId))
@@ -50,7 +63,8 @@ object SlickApp {
       selectOrdersAndOrderLinesQuery.result
 
     val insertCustomerDBIO: DBIO[Int] =
-      Customers.table += Customer(None, "April", "Jones")
+      Customers.table +=
+        Customer(None, "April", "Jones")
 
     val insertCustomersDBIO: DBIO[Seq[Customer]] =
       (Customers.table returning Customers.table) ++= Seq(
