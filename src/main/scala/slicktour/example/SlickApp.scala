@@ -23,7 +23,7 @@ object SlickApp {
     val database = databaseConfig.db
 
     // -----------------------------------------------------------------------------------------------------------------
-    // Queries
+    // Query
     // -----------------------------------------------------------------------------------------------------------------
 
     // Filtering (where)
@@ -41,17 +41,18 @@ object SlickApp {
         .filter(_.id =!= 1l)
         .map(c => (c.firstName, c.lastName))
 
-    val selectCustomerFullNameQuery: Query[Rep[String], String, Seq] =
+    val selectFullNameForCustomerQuery: Query[Rep[String], String, Seq] =
       Customers.table
         .filter(_.firstName.startsWith("A"))
         .map(c => c.firstName ++ " " ++ c.lastName)
 
+    // Joining
     val selectOrdersAndOrderLinesQuery: Query[(Orders, Rep[Option[OrderLines]]), (Order, Option[OrderLine]), Seq]  =
       (Orders.table joinLeft OrderLines.table on (_.id === _.orderId))
         .sortBy({ case (order, maybeOrderLine) => (order.id, maybeOrderLine.map(_.id))})
 
     // -----------------------------------------------------------------------------------------------------------------
-    // DBIOs
+    // DBIO
     // -----------------------------------------------------------------------------------------------------------------
     val selectCustomersDBIO: DBIO[Seq[Customer]] =
       selectCustomersQuery.result

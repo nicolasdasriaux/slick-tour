@@ -8,7 +8,7 @@ class Orders(tag: Tag) extends Table[Order](tag, "orders") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
   def customerId = column[Long]("customer_id")
   def date = column[LocalDate]("date")
-  def * = (id.?, customerId, date) <> ((Order.apply _).tupled, Order.unapply)
+  def * = (id.?, customerId, date).mapTo[Order]
 
   def customer = foreignKey("fk_orders_customer_id", customerId, Customers.table)(_.id)
 }
