@@ -158,37 +158,25 @@ object Combining {
   }
 
   object SequencingIOs {
+    def selectOrderById(id: Long): DBIO[Order] =
+      Orders.table.filter(_.id === id).result.head
+
+    def selectCustomerById(id: Long): DBIO[Customer] =
+      Customers.table.filter(_.id === id).result.head
+
     object BrokenMap {
-      def selectOrderById(id: Long): DBIO[Order] =
-        Orders.table.filter(_.id === id).result.head
-
-      def selectCustomerById(id: Long): DBIO[Customer] =
-        Customers.table.filter(_.id === id).result.head
-
-      def selectCustomerByOrderId(orderId: Long): DBIO[DBIO[Customer]] =
+      def selectCustomerByOrderId(orderId: Long): DBIO[DBIO[Customer]] /* Really? */ =
         selectOrderById(orderId)
           .map { order => selectCustomerById(order.customerId) }
     }
 
     object FlatMap {
-      def selectOrderById(id: Long): DBIO[Order] =
-        Orders.table.filter(_.id === id).result.head
-
-      def selectCustomerById(id: Long): DBIO[Customer] =
-        Customers.table.filter(_.id === id).result.head
-
       def selectCustomerByOrderId(orderId: Long): DBIO[Customer] =
         selectOrderById(orderId)
           .flatMap { order => selectCustomerById(order.customerId) }
     }
 
     object ForComprehension {
-      def selectOrderById(id: Long): DBIO[Order] =
-        Orders.table.filter(_.id === id).result.head
-
-      def selectCustomerById(id: Long): DBIO[Customer] =
-        Customers.table.filter(_.id === id).result.head
-
       def findCustomerByOrderId(orderId: Long): DBIO[Customer] =
         for {
           order <- selectOrderById(orderId)
@@ -198,15 +186,15 @@ object Combining {
   }
 
   object MapAndFlatMapTogether {
+    def selectOrderById(id: Long): DBIO[Order] =
+      Orders.table.filter(_.id === id).result.head
+
+    def selectCustomerById(id: Long): DBIO[Customer] =
+      Customers.table.filter(_.id === id).result.head
+
     case class Result(customer: Customer, order: Order)
 
     object MapAndFlatMap {
-      def selectOrderById(id: Long): DBIO[Order] =
-        Orders.table.filter(_.id === id).result.head
-
-      def selectCustomerById(id: Long): DBIO[Customer] =
-        Customers.table.filter(_.id === id).result.head
-
       def findOrderAndCustomer(orderId: Long): DBIO[Result] = {
         selectOrderById(orderId)
           .flatMap { order =>
@@ -219,19 +207,12 @@ object Combining {
     }
 
     object ForComprehension {
-      def selectOrderById(id: Long): DBIO[Order] =
-        Orders.table.filter(_.id === id).result.head
-
-      def selectCustomerById(id: Long): DBIO[Customer] =
-        Customers.table.filter(_.id === id).result.head
-
       def findOrderAndCustomer(orderId: Long): DBIO[Result] =
         for {
           order <- selectOrderById(orderId)
           customer <- selectCustomerById(order.customerId)
         } yield Result(customer, order)
     }
-
   }
 
   object InliningPreservesSemantics {
@@ -270,7 +251,7 @@ object Combining {
 
     case class Result(customer: Customer, order: Order, orderLines: Seq[OrderLine])
 
-    object MapAndFlatMap {
+    object MapAndFlatMap { // Too deep a nesting
       def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] =
         selectOrderById(orderId).flatMap { order =>
           selectCustomerById(order.customerId).flatMap { customer =>
@@ -281,7 +262,7 @@ object Combining {
         }
     }
 
-    object ForComprehension {
+    object ForComprehension { // No more nesting (actually it's hidden now)
       def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] =
         for {
           order <- selectOrderById(orderId)
@@ -295,25 +276,21 @@ object Combining {
     def selectOrderById(id: Long): DBIO[Order] =
       Orders.table.filter(_.id === id).result.head
 
-    def selectOrderLinesByOrderId(orderId: Long): DBIO[Seq[OrderLine]] =
-      OrderLines.table.filter(_.orderId === orderId).result
-
     def selectCustomerById(id: Long): DBIO[Customer] =
       Customers.table.filter(_.id === id).result.head
 
+    def selectOrderLinesByOrderId(orderId: Long): DBIO[Seq[OrderLine]] =
+      OrderLines.table.filter(_.orderId === orderId).result
+
     case class Result(customer: Customer, order: Order, orderLines: Seq[OrderLine])
 
-    object RawCode {
-      object ForComprehension {
-        def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] = {
-          for {
-            order <- selectOrderById(orderId)
-            customerId = order.customerId
-            orderLines <- selectOrderLinesByOrderId(orderId)
-            customer <- selectCustomerById(customerId)
-          } yield Result(customer, order, orderLines)
-        }
-      }
+    def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] = {
+      for {
+        order <- selectOrderById(orderId)
+        customerId = order.customerId
+        orderLines <- selectOrderLinesByOrderId(orderId)
+        customer <- selectCustomerById(customerId)
+      } yield Result(customer, order, orderLines)
     }
   }
 
@@ -338,6 +315,17 @@ object Combining {
           customer   /* Customer       */ <- selectCustomerById(customerId)          /* DBIO[Customer]       */
         } yield Result(customer, order, orderLines) /* Result */
       } /* DBIO[Result] */
+    }
+
+    object Scopes {
+      def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] = {
+        for {                                                   /* order      customerId orderLines customer   */
+          order <- selectOrderById(orderId)                     /*                                             */
+          customerId = order.id.get                             /* o                                           */
+          orderLines <- selectOrderLinesByOrderId(order.id.get) /* o          |                                */
+          customer<- selectCustomerById(customerId)             /* |          o          |                     */
+        } yield Result(customer, order, orderLines)             /* o          |          o          o          */
+      }
     }
 
     object Nesting {
