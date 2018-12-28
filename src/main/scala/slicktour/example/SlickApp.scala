@@ -12,16 +12,12 @@ import slicktour.ecommerce.db._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
-import scala.util.Failure
+import scala.util._
 
 object SlickApp {
   private val logger = Logger(SlickApp.getClass)
 
   def main(args: Array[String]): Unit = {
-    val config = ConfigFactory.load()
-    val databaseConfig = DatabaseConfig.forConfig[JdbcProfile]("ecommerce.database", config)
-    val database = databaseConfig.db
-
     // -----------------------------------------------------------------------------------------------------------------
     // Query
     // -----------------------------------------------------------------------------------------------------------------
@@ -36,20 +32,33 @@ object SlickApp {
         .filter(_.id === 1l)
 
     // Mapping (select)
-    val selectFirstNameAndLastNameForCustomerQuery: Query[(Rep[String], Rep[String]), (String, String), Seq] =
+    val selectFirstNameAndLastNameQuery:
+      Query[(Rep[String], Rep[String]), (String, String), Seq] =
       Customers.table
         .filter(_.id =!= 1l)
         .map(c => (c.firstName, c.lastName))
 
-    val selectFullNameForCustomerQuery: Query[Rep[String], String, Seq] =
+    val selectFullNameQuery:
+      Query[Rep[String], String, Seq] =
       Customers.table
         .filter(_.firstName.startsWith("A"))
         .map(c => c.firstName ++ " " ++ c.lastName)
 
     // Joining
-    val selectOrdersAndOrderLinesQuery: Query[(Orders, Rep[Option[OrderLines]]), (Order, Option[OrderLine]), Seq] =
-      (Orders.table joinLeft OrderLines.table on (_.id === _.orderId))
-        .sortBy({ case (order, maybeOrderLine) => (order.id, maybeOrderLine.map(_.id)) })
+    val selectOrdersAndOrderLinesQuery:
+      Query[
+        (Orders, Rep[Option[OrderLines]]),
+        (Order, Option[OrderLine]),
+        Seq
+      ] =
+      Orders.table joinLeft OrderLines.table on (_.id === _.orderId)
+
+    // Sorting
+    val selectOrdersAndOrderLinesOrderedQuery =
+      selectOrdersAndOrderLinesQuery
+        .sortBy { case (order, maybeOrderLine) =>
+          (order.id, maybeOrderLine.map(_.id))
+        }
 
     // -----------------------------------------------------------------------------------------------------------------
     // DBIO
@@ -60,8 +69,8 @@ object SlickApp {
     val selectItemDBIO: DBIO[Option[Item]] =
       selectItemQuery.result.headOption
 
-    val selectOrdersAndOrderLinesDBIO: DBIO[Seq[(Order, Option[OrderLine])]] =
-      selectOrdersAndOrderLinesQuery.result
+    val selectOrdersAndOrderLinesOrderedDBIO: DBIO[Seq[(Order, Option[OrderLine])]] =
+      selectOrdersAndOrderLinesOrderedQuery.result
 
     val insertCustomerDBIO: DBIO[Int] =
       Customers.table +=
@@ -88,28 +97,37 @@ object SlickApp {
     // -----------------------------------------------------------------------------------------------------------------
     // Combining DBIOs
     // -----------------------------------------------------------------------------------------------------------------
-    case class Result(
-                       insertedCustomers: Seq[Customer],
-                       customers: Seq[Customer],
-                       maybeItem: Option[Item],
-                       ordersAndOrderLines: Seq[(Order, Option[OrderLine])]
-                     )
+    case class Result(insertedCustomers: Seq[Customer],
+                      customers: Seq[Customer],
+                      maybeItem: Option[Item],
+                      ordersAndOrderLines: Seq[(Order, Option[OrderLine])])
 
-    val program1: DBIO[Result] = for {
+    val program: DBIO[Result] = for {
       _ <- insertCustomerDBIO
       insertedCustomers <- insertCustomersDBIO
       _ <- updateCustomerDBIO
       _ <- deleteCustomerDBIO
       customers <- selectCustomersDBIO
       maybeItem <- selectItemDBIO
-      ordersAndOrderLines <- selectOrdersAndOrderLinesDBIO
+      ordersAndOrderLines <- selectOrdersAndOrderLinesOrderedDBIO
     } yield Result(insertedCustomers, customers, maybeItem, ordersAndOrderLines)
-
 
     // -----------------------------------------------------------------------------------------------------------------
     // Running DBIO
     // -----------------------------------------------------------------------------------------------------------------
-    val eventualResult: Future[Result] = database.run(program1)
+    // Load configuration from application.conf (using Lightbend Config library)
+    val config = ConfigFactory.load()
+
+    // Extract database configuration from configuration
+    val databaseConfig = DatabaseConfig.forConfig[JdbcProfile](
+      "ecommerce.database",
+      config
+    )
+
+    val transactionalProgram: DBIO[Result] = program.transactionally
+
+    val database = databaseConfig.db
+    val eventualResult: Future[Result] = database.run(transactionalProgram)
 
     // -----------------------------------------------------------------------------------------------------------------
     // Handling future run result
@@ -126,19 +144,31 @@ object SlickApp {
     val eventualSafeCompletion: Future[Unit] = eventualCompletion
       .transform {
         case failure @ Failure(exception) =>
+          // Log exception and key failure as is
           logger.error("Exception occurred", exception)
           failure
 
-        case success => success
+        case success @ Success(_) =>
+          // Keep success as is
+          success
       }
+      // Always close database after completion (either success or failure)
       .transformWith(_ => database.shutdown)
 
     Await.result(eventualSafeCompletion, 5.seconds)
   }
 }
 
+object SimpleDBIO {
+  val success: DBIO[Int] = DBIO.successful(42)
+  // Will produce value 42 when run
+
+  val failure: DBIO[Nothing] = DBIO.failed(new IllegalStateException("Failure"))
+  // Will never produce a value and fail with IllegalStateException when run
+}
+
 object Combining {
-  object TransformingIO {
+  object TransformingDBIO {
     object Map {
       def selectOrderById(id: Long): DBIO[Order] = Orders.table.filter(_.id === id).result.head
 
@@ -157,7 +187,7 @@ object Combining {
     }
   }
 
-  object SequencingIOs {
+  object SequencingDBIOs {
     def selectOrderById(id: Long): DBIO[Order] =
       Orders.table.filter(_.id === id).result.head
 
@@ -240,22 +270,22 @@ object Combining {
   }
 
   object TooManyMapsAndFlatMaps {
-    def selectOrderById(id: Long): DBIO[Order] =
+    def findOrder(id: Long): DBIO[Order] =
       Orders.table.filter(_.id === id).result.head
 
-    def selectCustomerById(id: Long): DBIO[Customer] =
+    def findCustomer(id: Long): DBIO[Customer] =
       Customers.table.filter(_.id === id).result.head
 
-    def selectOrderLinesByOrderId(orderId: Long): DBIO[Seq[OrderLine]] =
+    def findOrderLines(orderId: Long): DBIO[Seq[OrderLine]] =
       OrderLines.table.filter(_.orderId === orderId).result
 
     case class Result(customer: Customer, order: Order, orderLines: Seq[OrderLine])
 
     object MapAndFlatMap { // Too deep a nesting
-      def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] =
-        selectOrderById(orderId).flatMap { order =>
-          selectCustomerById(order.customerId).flatMap { customer =>
-            selectOrderLinesByOrderId(orderId).map { orderLines =>
+      def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] =
+        findOrder(orderId).flatMap { order =>
+          findCustomer(order.customerId).flatMap { customer =>
+            findOrderLines(orderId).map { orderLines =>
               Result(customer, order, orderLines)
             }
           }
@@ -263,86 +293,86 @@ object Combining {
     }
 
     object ForComprehension { // No more nesting (actually it's hidden now)
-      def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] =
+      def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] =
         for {
-          order <- selectOrderById(orderId)
-          customer <- selectCustomerById(order.customerId)
-          orderLines <- selectOrderLinesByOrderId(orderId)
+          order <- findOrder(orderId)
+          customer <- findCustomer(order.customerId)
+          orderLines <- findOrderLines(orderId)
         } yield Result(customer, order, orderLines)
     }
   }
 
   object IntermediaryExpression {
-    def selectOrderById(id: Long): DBIO[Order] =
+    def findOrder(id: Long): DBIO[Order] =
       Orders.table.filter(_.id === id).result.head
 
-    def selectCustomerById(id: Long): DBIO[Customer] =
+    def findCustomer(id: Long): DBIO[Customer] =
       Customers.table.filter(_.id === id).result.head
 
-    def selectOrderLinesByOrderId(orderId: Long): DBIO[Seq[OrderLine]] =
+    def findOrderLines(orderId: Long): DBIO[Seq[OrderLine]] =
       OrderLines.table.filter(_.orderId === orderId).result
 
     case class Result(customer: Customer, order: Order, orderLines: Seq[OrderLine])
 
-    def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] = {
+    def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] = {
       for {
-        order <- selectOrderById(orderId)
+        order <- findOrder(orderId)
         customerId = order.customerId
-        orderLines <- selectOrderLinesByOrderId(orderId)
-        customer <- selectCustomerById(customerId)
+        orderLines <- findOrderLines(orderId)
+        customer <- findCustomer(customerId)
       } yield Result(customer, order, orderLines)
     }
   }
 
   object ForComprehensionAnatomy {
-    def selectOrderById(id: Long): DBIO[Order] =
+    def findOrder(id: Long): DBIO[Order] =
       Orders.table.filter(_.id === id).result.head
 
-    def selectOrderLinesByOrderId(orderId: Long): DBIO[Seq[OrderLine]] =
+    def findLines(orderId: Long): DBIO[Seq[OrderLine]] =
       OrderLines.table.filter(_.orderId === orderId).result
 
-    def selectCustomerById(id: Long): DBIO[Customer] =
+    def findCustomer(id: Long): DBIO[Customer] =
       Customers.table.filter(_.id === id).result.head
 
-    case class Result(customer: Customer, order: Order, orderLines: Seq[OrderLine])
+    case class Result(customer: Customer, order: Order, lines: Seq[OrderLine])
 
     object Types {
-      def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] = {
+      def selectOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
         for {
-          order      /* Order          */ <- selectOrderById(orderId)                /* DBIO[Order]          */
-          customerId /* Long           */ =  order.id.get                            /* Long                 */
-          orderLines /* Seq[OrderLine] */ <- selectOrderLinesByOrderId(order.id.get) /* DBIO[Seq[OrderLine]] */
-          customer   /* Customer       */ <- selectCustomerById(customerId)          /* DBIO[Customer]       */
-        } yield Result(customer, order, orderLines) /* Result */
+          order      /* Order          */ <- findOrder(orderId)       /* DBIO[Order]          */
+          customerId /* Long           */ =  order.id.get             /* Long                 */
+          lines      /* Seq[OrderLine] */ <- findLines(order.id.get)  /* DBIO[Seq[OrderLine]] */
+          customer   /* Customer       */ <- findCustomer(customerId) /* DBIO[Customer]       */
+        } yield Result(customer, order, lines) /* Result */
       } /* DBIO[Result] */
     }
 
     object Scopes {
-      def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] = {
-        for {                                                   /* order      customerId orderLines customer   */
-          order <- selectOrderById(orderId)                     /*                                             */
-          customerId = order.id.get                             /* o                                           */
-          orderLines <- selectOrderLinesByOrderId(order.id.get) /* o          |                                */
-          customer<- selectCustomerById(customerId)             /* |          o          |                     */
-        } yield Result(customer, order, orderLines)             /* o          |          o          o          */
+      def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
+        for {
+          order <- findOrder(orderId)          /* order                   */
+          customerId = order.id.get            /* O    customerId         */
+          lines <- findLines(order.id.get)     /* O    |    orderLines    */
+          customer<- findCustomer(customerId)  /* |    O    |    customer */
+        } yield Result(customer, order, lines) /* O    |    O    O        */
       }
     }
 
     object Nesting {
-      def selectOrderAndCustomerAndOrderLinesByOrderId(orderId: Long): DBIO[Result] = {
+      def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
         for {
-             order <- selectOrderById(orderId)
+             order <- findOrder(orderId)
           /* | */ customerId = order.id.get
-          /* |    | */ orderLines <- selectOrderLinesByOrderId(order.id.get)
-          /* |    |    | */ customer <- selectCustomerById(customerId)
-        } /* |    |    |    | */ yield Result(customer, order, orderLines)
+          /* |    | */ lines <- findLines(order.id.get)
+          /* |    |    | */ customer <- findCustomer(customerId)
+        } /* |    |    |    | */ yield Result(customer, order, lines)
       }
     }
   }
 }
 
 object ConditionsAndLoops {
-  def selectOrderCountByCustomerId(customerId: Long): DBIO[Int] =
+  def findOrderCountByCustomerId(customerId: Long): DBIO[Int] =
     Orders.table
       .filter(_.customerId === customerId)
       .size
@@ -356,12 +386,11 @@ object ConditionsAndLoops {
 
   def insertFwoWhenInactiveByCustomerId(customerId: Long): DBIO[Boolean] =
     for {
-      orderCount <- selectOrderCountByCustomerId(customerId)
+      orderCount <- findOrderCountByCustomerId(customerId)
 
       done <-
         if (orderCount == 0)
-          insertFwoByCustomerId(customerId)
-            .map(_ => true)
+          insertFwoByCustomerId(customerId).andThen(DBIO.successful(true))
         else
           DBIO.successful(false)
     } yield done
