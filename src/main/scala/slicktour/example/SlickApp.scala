@@ -168,67 +168,65 @@ object SimpleDBIO {
 }
 
 object Combining {
+  def findOrder(id: Long): DBIO[Order] =
+    Orders.table.filter(_.id === id).result.head
+
+  def findCustomer(id: Long): DBIO[Customer] =
+    Customers.table.filter(_.id === id).result.head
+
+  def findLines(orderId: Long): DBIO[Seq[OrderLine]] =
+    OrderLines.table.filter(_.orderId === orderId).result
+
   object TransformingDBIO {
     object Map {
-      def selectOrderById(id: Long): DBIO[Order] = Orders.table.filter(_.id === id).result.head
-
-      def selectOrderDescriptionByOrderId(orderId: Long): DBIO[String] =
-        selectOrderById(orderId)
-          .map(order => s"Order #$orderId for customer #${order.customerId}")
+      def findOrderDescription(orderId: Long): DBIO[String] =
+        findOrder(orderId).map { order =>
+          s"Order #$orderId for customer #${order.customerId}"
+        }
     }
 
     object ForComprehension {
-      def selectOrderById(id: Long): DBIO[Order] = Orders.table.filter(_.id === id).result.head
-
-      def selectOrderDescriptionByOrderId(orderId: Long): DBIO[String] =
+      def findOrderDescription(orderId: Long): DBIO[String] =
         for {
-          order <- selectOrderById(orderId)
+          order <- findOrder(orderId)
         } yield s"Order #$orderId for customer #${order.customerId}"
     }
   }
 
   object SequencingDBIOs {
-    def selectOrderById(id: Long): DBIO[Order] =
-      Orders.table.filter(_.id === id).result.head
-
-    def selectCustomerById(id: Long): DBIO[Customer] =
-      Customers.table.filter(_.id === id).result.head
-
     object BrokenMap {
-      def selectCustomerByOrderId(orderId: Long): DBIO[DBIO[Customer]] /* Really? */ =
-        selectOrderById(orderId)
-          .map { order => selectCustomerById(order.customerId) }
+      def findOrderCustomer(orderId: Long): DBIO[DBIO[Customer]] /* Really? */ =
+        findOrder(orderId)
+          .map { order =>
+            findCustomer(order.customerId)
+          }
     }
 
     object FlatMap {
-      def selectCustomerByOrderId(orderId: Long): DBIO[Customer] =
-        selectOrderById(orderId)
-          .flatMap { order => selectCustomerById(order.customerId) }
+      def findOrderCustomer(orderId: Long): DBIO[Customer] =
+        findOrder(orderId)
+          .flatMap { order =>
+            findCustomer(order.customerId)
+          }
     }
 
     object ForComprehension {
-      def findCustomerByOrderId(orderId: Long): DBIO[Customer] =
+      def findOrderCustomer(orderId: Long): DBIO[Customer] =
         for {
-          order <- selectOrderById(orderId)
-          customer <- selectCustomerById(order.customerId)
+          order <- findOrder(orderId)
+          customer <- findCustomer(order.customerId)
         } yield customer
     }
   }
 
   object MapAndFlatMapTogether {
-    def selectOrderById(id: Long): DBIO[Order] =
-      Orders.table.filter(_.id === id).result.head
-
-    def selectCustomerById(id: Long): DBIO[Customer] =
-      Customers.table.filter(_.id === id).result.head
-
     case class Result(customer: Customer, order: Order)
 
     object MapAndFlatMap {
       def findOrderAndCustomer(orderId: Long): DBIO[Result] = {
-        selectOrderById(orderId)
+        findOrder(orderId)
           .flatMap { order =>
-            selectCustomerById(order.customerId)
+            findCustomer(order.customerId)
               .map { customer =>
                 Result(customer, order)
               }
@@ -239,8 +237,8 @@ object Combining {
     object ForComprehension {
       def findOrderAndCustomer(orderId: Long): DBIO[Result] =
         for {
-          order <- selectOrderById(orderId)
-          customer <- selectCustomerById(order.customerId)
+          order <- findOrder(orderId)
+          customer <- findCustomer(order.customerId)
         } yield Result(customer, order)
     }
   }
@@ -270,22 +268,13 @@ object Combining {
   }
 
   object TooManyMapsAndFlatMaps {
-    def findOrder(id: Long): DBIO[Order] =
-      Orders.table.filter(_.id === id).result.head
-
-    def findCustomer(id: Long): DBIO[Customer] =
-      Customers.table.filter(_.id === id).result.head
-
-    def findOrderLines(orderId: Long): DBIO[Seq[OrderLine]] =
-      OrderLines.table.filter(_.orderId === orderId).result
-
     case class Result(customer: Customer, order: Order, orderLines: Seq[OrderLine])
 
     object MapAndFlatMap { // Too deep a nesting
       def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] =
         findOrder(orderId).flatMap { order =>
           findCustomer(order.customerId).flatMap { customer =>
-            findOrderLines(orderId).map { orderLines =>
+            findLines(orderId).map { orderLines =>
               Result(customer, order, orderLines)
             }
           }
@@ -297,43 +286,25 @@ object Combining {
         for {
           order <- findOrder(orderId)
           customer <- findCustomer(order.customerId)
-          orderLines <- findOrderLines(orderId)
+          orderLines <- findLines(orderId)
         } yield Result(customer, order, orderLines)
     }
   }
 
   object IntermediaryExpression {
-    def findOrder(id: Long): DBIO[Order] =
-      Orders.table.filter(_.id === id).result.head
-
-    def findCustomer(id: Long): DBIO[Customer] =
-      Customers.table.filter(_.id === id).result.head
-
-    def findOrderLines(orderId: Long): DBIO[Seq[OrderLine]] =
-      OrderLines.table.filter(_.orderId === orderId).result
-
     case class Result(customer: Customer, order: Order, orderLines: Seq[OrderLine])
 
     def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] = {
       for {
         order <- findOrder(orderId)
         customerId = order.customerId
-        orderLines <- findOrderLines(orderId)
+        orderLines <- findLines(orderId)
         customer <- findCustomer(customerId)
       } yield Result(customer, order, orderLines)
     }
   }
 
   object ForComprehensionAnatomy {
-    def findOrder(id: Long): DBIO[Order] =
-      Orders.table.filter(_.id === id).result.head
-
-    def findLines(orderId: Long): DBIO[Seq[OrderLine]] =
-      OrderLines.table.filter(_.orderId === orderId).result
-
-    def findCustomer(id: Long): DBIO[Customer] =
-      Customers.table.filter(_.id === id).result.head
-
     case class Result(customer: Customer, order: Order, lines: Seq[OrderLine])
 
     object Types {

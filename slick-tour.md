@@ -468,6 +468,43 @@ val failure: DBIO[Nothing] = DBIO.failed(new IllegalStateException("Failure"))
 
 ---
 
+# Finding `Customer`, `Order` and `OrderLines`s
+
+```scala
+def findCustomer(id: Long): DBIO[Customer] =
+  Customers.table.filter(_.id === id).result.head
+  
+def findOrder(id: Long): DBIO[Order] =
+  Orders.table.filter(_.id === id).result.head
+
+def findOrderLines(orderId: Long): DBIO[Seq[OrderLine]] =
+  OrderLines.table.filter(_.orderId === orderId).result
+```
+
+---
+
+# Transforming `DBIO` (`map`)
+
+```scala
+def findOrderDescription(orderId: Long): DBIO[String] =
+  findOrder(orderId).map { order =>
+    s"Order #$orderId for customer #${order.customerId}"
+  }
+```
+
+---
+
+# Transforming `DBIO` (`for` / `yield`)
+
+```scala
+def selectOrderDescriptionByOrderId(orderId: Long): DBIO[String] =
+  for {
+    order <- findOrder(orderId)
+  } yield s"Order #$orderId for customer #${order.customerId}"
+```
+
+---
+
 # Anatomy of `for` Comprehension
 
 ---
