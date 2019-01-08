@@ -23,6 +23,15 @@ slidenumbers: true
 
 ---
 
+# Database Profile
+
+* Many differences between databases and SQL dialects
+* A **profile** allows
+  - to unify peculiarities,
+  - and also to benefit from them.
+
+---
+
 # Tailoring a _PostgreSQL_ Profile
 
 ```scala
@@ -75,6 +84,8 @@ class Customers(tag: Tag) extends Table[Customer](tag, "customers") {
   def firstName = column[String]("first_name")
   def lastName = column[String]("last_name")
   def * = (id.?, firstName, lastName).mapTo[Customer]
+  
+  def fullName = firstName ++ " " ++ lastName // Calculated field
 }
 
 object Customers {
@@ -415,11 +426,11 @@ val eventualResult: Future[Result] = database.run(transactionalProgram)
 
 ---
 
-# Handling `Future`
+# Handling `Future` Result
 
 ---
 
-# Handling Future **Success**
+# Handling **Success**
 
 ```scala
 val eventualCompletion: Future[Unit] = for {
@@ -434,7 +445,7 @@ val eventualCompletion: Future[Unit] = for {
 
 ---
 
-# Handling Future **Failure**
+# Handling **Failure**
 
 ```scala
 val eventualSafeCompletion: Future[Unit] = eventualCompletion
@@ -454,7 +465,7 @@ val eventualSafeCompletion: Future[Unit] = eventualCompletion
 
 ---
 
-# Waiting for Future **Completion**
+# Waiting for **Completion**
 
 ```scala
 Await.result(eventualSafeCompletion, 5.seconds)
@@ -569,7 +580,7 @@ def findOrderCustomer(orderId: Long): DBIO[Customer] = {
 ```scala
 for {
   order <- findOrder(orderId)
-  customerId = order.customerId // Not a DBIO, no -> but =
+  customerId = order.customerId // Not a DBIO, '=' instead of '<-'
   orderLines <- findLines(orderId)
   customer <- findCustomer(customerId)
 } yield Result(customer, order, orderLines)
@@ -578,6 +589,13 @@ for {
 ---
 
 # Anatomy of `for` Comprehension
+
+---
+
+# [fit] **`for` comprehension is not a `for` loop**.
+## It can be a `for` loop...
+# [fit] But it can handle **many other things**
+## like `Option`, `Future` and... `DBIO`.
 
 ---
 
@@ -603,9 +621,9 @@ def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
 | generator  | `A`        | `<-`     | `DBIO[A]`       |
 | assignment | `B`        | `=`      | `B`             |
 
-|            | `for` comprehension type | `yield` expression type |
-|------------|------------------------- |-------------------------|
-| production | `DBIO[R]`                | `R`                     |
+|        | `for` comprehension type |   |`yield` expression type |
+|--------|--------------------------|---|------------------------|
+| result | `DBIO[R]`                |   | `R`                    |
 
 * Combines **only `DBIO[T]`**, **no mix** with `Option[T]`, `Future[T]`, `Seq[T]`...
 * But it could be **only** `Option[T]`, or **only** `Future[T]`, or **only** `Seq[T]`...
@@ -734,10 +752,10 @@ def insertCustomers(n: Int): DBIO[Int] =
 
 ---
 
-# Favor **Fold** over Recursion
+# Replacing Recursion with **Fold**
 
 ```scala
-def insertCustomersAndReturnIds(n: Int): DBIO[Int] = {
+def insertCustomers(n: Int): DBIO[Int] = {
   val counts = (1 to n).map(insertCustomer)
   DBIO.fold(counts, 0)(_ + _)
 }
@@ -746,8 +764,11 @@ def insertCustomersAndReturnIds(n: Int): DBIO[Int] = {
 * Recursion can be hard to read
 * Prefer using simpler alternatives whenever possible
   - `DBIO.sequence`
-  - `DBIO.fold`
-  - `DBIO.seq`  
+  - `DBIO.fold`...
+
+---
+
+# Further with _Slick_
 
 ---
 
@@ -758,3 +779,10 @@ def insertCustomersAndReturnIds(n: Int): DBIO[Int] = {
   -  Prefer `.result.headOption.map(_.isDefined)` that reads only first record
 * Use **Compiled Queries** for parameterized queries
 * Favor `.result.headOption` over `.result.head`
+
+---
+
+# More about _Slick_
+
+* [Documentation](http://slick.lightbend.com/docs/)
+* [Essential Slick](https://underscore.io/books/essential-slick/) book

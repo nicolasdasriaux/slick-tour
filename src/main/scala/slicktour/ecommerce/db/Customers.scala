@@ -7,6 +7,8 @@ class Customers(tag: Tag) extends Table[Customer](tag, "customers") {
   def firstName = column[String]("first_name")
   def lastName = column[String]("last_name")
   def * = (id.?, firstName, lastName).mapTo[Customer]
+
+  def fullName = firstName ++ " " ++ lastName // Calculated field
 }
 
 object Customers {

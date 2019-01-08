@@ -393,7 +393,7 @@ object RecursionWorksToo {
   }
 
   object Sequence {
-    def insertCustomersAndReturnIds(n: Int): DBIO[Int] = {
+    def insertCustomers(n: Int): DBIO[Int] = {
       val counts = (1 to n).map(insertCustomer)
       DBIO.fold(counts, 0)(_ + _)
     }
