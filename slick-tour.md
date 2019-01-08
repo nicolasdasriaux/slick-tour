@@ -7,11 +7,23 @@ slidenumbers: true
 
 ---
 
-# Tailoring a Database **Profile**
+# _Slick_
+
+> Reactive Functional Relational Mapping for Scala
+-- http://slick.lightbend.com
+
+* Library to access **relational databases**
+* Can express queries in a functional way (`map`, `filter`...)
+* Also supports plain SQL
+* Supports asynchronicity (`Future`) and streaming (reactive streams)
 
 ---
 
-# Assembling a _PostgreSQL_ Profile
+# Database **Profile**
+
+---
+
+# Tailoring a _PostgreSQL_ Profile
 
 ```scala
 // Extend PostgreSQL profile with java.time and Spray JSON support
@@ -93,8 +105,9 @@ class Customers(tag: Tag) extends Table[Customer](tag, "customers") {
 
 | Part                          | Type                                                 |
 |-------------------------------|------------------------------------------------------|
+| `Customer.apply _         `   | `(Option[Long], String, String) => Customer`         |
 | `(Customer.apply _).tupled`   | `((Option[Long], String, String)) => Customer`       |
-| `Customer.unapply`            | `Customer => Option[(Option[Long], String, String)]` |
+| `Customer.unapply _`          | `Customer => Option[(Option[Long], String, String)]` |
 
 ---
 
@@ -234,7 +247,7 @@ val selectOrdersAndOrderLinesQuery:
 
 ---
 
-# Sorting (`ORDER` `BY`)
+# Sorting (`ORDER BY`)
 
 ```scala
 val selectOrdersAndOrderLinesOrderedQuery =
@@ -350,7 +363,7 @@ val transactionalProgram: DBIO[Result] = program.transactionally
 
 ---
 
-# Running **Database I/Os**
+# Running **Database I/Os** (`DBIO`)
 
 ---
 
@@ -397,8 +410,12 @@ val eventualResult: Future[Result] = database.run(transactionalProgram)
 
 * `run` returns a `Future`, a promise for a result that will eventually
   - **succeed** with a **value**,
-  - or **failure** with an **exception**.
+  - or **fail** with an **exception**.
 * In case of failure, exception is just used as a value and is **never thrown**.
+
+---
+
+# Handling `Future`
 
 ---
 
@@ -452,7 +469,7 @@ Await.result(eventualSafeCompletion, 5.seconds)
 
 ---
 
-# Combining `DBIO`s
+# Combining **Database IOs** (`DBIO`)
 
 ---
 
@@ -468,7 +485,7 @@ val failure: DBIO[Nothing] = DBIO.failed(new IllegalStateException("Failure"))
 
 ---
 
-# Finding `Customer`, `Order` and `OrderLines`s
+# Finding `Customer`, `Order` and `OrderLine`s
 
 ```scala
 def findCustomer(id: Long): DBIO[Customer] =
@@ -486,10 +503,11 @@ def findOrderLines(orderId: Long): DBIO[Seq[OrderLine]] =
 # Transforming `DBIO` (`map`)
 
 ```scala
-def findOrderDescription(orderId: Long): DBIO[String] =
+def findOrderDescription(orderId: Long): DBIO[String] = {
   findOrder(orderId).map { order =>
     s"Order #$orderId for customer #${order.customerId}"
   }
+}
 ```
 
 ---
@@ -497,10 +515,64 @@ def findOrderDescription(orderId: Long): DBIO[String] =
 # Transforming `DBIO` (`for` / `yield`)
 
 ```scala
-def selectOrderDescriptionByOrderId(orderId: Long): DBIO[String] =
+def findOrderDescription(orderId: Long): DBIO[String] = {
   for {
     order <- findOrder(orderId)
   } yield s"Order #$orderId for customer #${order.customerId}"
+}
+```
+
+---
+
+# Sequencing `DBIO`s (broken `map`)
+
+```scala
+def findOrderCustomer(orderId: Long): DBIO[DBIO[Customer]] = {
+  findOrder(orderId).map { order =>
+    findCustomer(order.customerId)
+  }
+} 
+```
+
+* Wrong **nested** type `DBIO[DBIO[Customer]]`
+* Needs to be made **flat** somehow as `DBIO[Customer]`
+
+---
+
+# Sequencing `DBIO`s (`flatMap`)
+
+```scala
+def findOrderCustomer(orderId: Long): DBIO[Customer] = {
+  findOrder(orderId).flatMap { order =>
+    findCustomer(order.customerId)
+  }
+}
+```
+
+---
+
+# Sequencing `DBIO`s (`for` / `yield`)
+
+```scala
+def findOrderCustomer(orderId: Long): DBIO[Customer] = {
+  for {
+    order <- findOrder(orderId)
+    customer <- findCustomer(order.customerId)
+  } yield customer
+}
+```
+
+---
+
+# Sequencing with Non-`DBIO`
+
+```scala
+for {
+  order <- findOrder(orderId)
+  customerId = order.customerId // Not a DBIO, no -> but =
+  orderLines <- findLines(orderId)
+  customer <- findCustomer(customerId)
+} yield Result(customer, order, orderLines)
 ```
 
 ---
@@ -512,7 +584,7 @@ def selectOrderDescriptionByOrderId(orderId: Long): DBIO[String] =
 # `for` Comprehension **Types**
 
 ```scala
-def selectOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
+def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
   for {
     order      /* Order          */ <- findOrder(orderId)       /* DBIO[Order]          */
     customerId /* Long           */ =  order.id.get             /* Long                 */
@@ -555,7 +627,7 @@ def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
 
 ---
 
-# `for` Comprehension **Nesting**
+# `for` Comprehension **Implicit Nesting**
 
 ```scala
 def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
@@ -569,3 +641,120 @@ def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
 ```
 
 Visually flattens, but still implicitly nested
+
+---
+
+# Conditions and Loops with **Database IOs** (`DBIO`)
+
+---
+
+# A Tale of Free Welcome Order
+
+* A free gift for every customer having never ordered anything
+* Materialized by a fictitious order
+* Let's call it _Free Welcome Order_ or _FWO_
+* Yes, this is a bit contrived :wink:
+
+---
+
+# Count Orders of a Customer
+
+```scala
+def findOrderCountByCustomerId(customerId: Long): DBIO[Int] =
+  Orders.table
+    .filter(_.customerId === customerId)
+    .size
+    .result
+```
+
+---
+
+# Insert FWO for a Customer
+
+```scala
+def insertFwoByCustomerId(customerId: Long): DBIO[Unit] =
+  for {
+    orderId <-
+      (Orders.table returning Orders.table.map(_.id)) +=
+        Order(None, customerId, LocalDate.now())
+
+    _ <- OrderLines.table += OrderLine(None, orderId, 1, 1)
+  } yield ()
+```
+
+---
+
+# **Conditionally** Insert FWO for a Customer
+
+```scala
+def conditionallyInsertFwo(customerId: Long): DBIO[Boolean] =
+  for {
+    orderCount <- findOrderCountByCustomerId(customerId)
+
+    done <-
+      if (orderCount == 0)
+        insertFwoByCustomerId(customerId).andThen(DBIO.successful(true))
+      else
+        DBIO.successful(false)
+  } yield done
+```
+
+---
+
+# **Repeatedly** Insert FWO for Customers
+
+```scala
+def repeatedlyInsertFwo(customerIds: Seq[Long]): DBIO[Seq[Boolean]] = {
+  val seqOfDbio: Seq[DBIO[Boolean]] = customerIds.map(conditionallyInsertFwo)
+  val dbioOfSeq: DBIO[Seq[Boolean]] = DBIO.sequence(seqOfDbio)
+  dbioOfSeq
+}
+```
+
+* Make a `Seq[DBIO[Boolean]]` using `map` over a `Seq[Long]`
+* Turn it into a `DBIO[Seq[Boolean]]` using `DBIO.sequence`
+
+---
+
+# Repeating with **Recursion** :fearful:
+
+```scala
+def insertCustomer(n: Int): DBIO[Int] =
+  Customers.table += Customer(None, s"First Name $n", s"Last Name $n")
+
+def insertCustomers(n: Int): DBIO[Int] =
+  if (n > 0)
+    for {
+      count <- insertCustomer(n)
+      restCount <- insertCustomers(n - 1) // Recursion
+    } yield count + restCount
+  else
+    DBIO.successful(0)
+```
+
+---
+
+# Favor **Fold** over Recursion
+
+```scala
+def insertCustomersAndReturnIds(n: Int): DBIO[Int] = {
+  val counts = (1 to n).map(insertCustomer)
+  DBIO.fold(counts, 0)(_ + _)
+}
+```
+
+* Recursion can be hard to read
+* Prefer using simpler alternatives whenever possible
+  - `DBIO.sequence`
+  - `DBIO.fold`
+  - `DBIO.seq`  
+
+---
+
+# What We Could Have Done Better
+
+* When testing for **existence**
+  -  Avoid `.size.result` that counts all matching records
+  -  Prefer `.result.headOption.map(_.isDefined)` that reads only first record
+* Use **Compiled Queries** for parameterized queries
+* Favor `.result.headOption` over `.result.head`

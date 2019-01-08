@@ -179,43 +179,46 @@ object Combining {
 
   object TransformingDBIO {
     object Map {
-      def findOrderDescription(orderId: Long): DBIO[String] =
+      def findOrderDescription(orderId: Long): DBIO[String] = {
         findOrder(orderId).map { order =>
           s"Order #$orderId for customer #${order.customerId}"
         }
+      }
     }
 
     object ForComprehension {
-      def findOrderDescription(orderId: Long): DBIO[String] =
+      def findOrderDescription(orderId: Long): DBIO[String] = {
         for {
           order <- findOrder(orderId)
         } yield s"Order #$orderId for customer #${order.customerId}"
+      }
     }
   }
 
   object SequencingDBIOs {
     object BrokenMap {
-      def findOrderCustomer(orderId: Long): DBIO[DBIO[Customer]] /* Really? */ =
-        findOrder(orderId)
-          .map { order =>
-            findCustomer(order.customerId)
-          }
+      def findOrderCustomer(orderId: Long): DBIO[DBIO[Customer]] = {
+        findOrder(orderId).map { order =>
+          findCustomer(order.customerId)
+        }
+      }
     }
 
     object FlatMap {
-      def findOrderCustomer(orderId: Long): DBIO[Customer] =
-        findOrder(orderId)
-          .flatMap { order =>
-            findCustomer(order.customerId)
-          }
+      def findOrderCustomer(orderId: Long): DBIO[Customer] = {
+        findOrder(orderId).flatMap { order =>
+          findCustomer(order.customerId)
+        }
+      }
     }
 
     object ForComprehension {
-      def findOrderCustomer(orderId: Long): DBIO[Customer] =
+      def findOrderCustomer(orderId: Long): DBIO[Customer] = {
         for {
           order <- findOrder(orderId)
           customer <- findCustomer(order.customerId)
         } yield customer
+      }
     }
   }
 
@@ -224,13 +227,11 @@ object Combining {
 
     object MapAndFlatMap {
       def findOrderAndCustomer(orderId: Long): DBIO[Result] = {
-        findOrder(orderId)
-          .flatMap { order =>
-            findCustomer(order.customerId)
-              .map { customer =>
-                Result(customer, order)
-              }
+        findOrder(orderId).flatMap { order =>
+          findCustomer(order.customerId).map { customer =>
+            Result(customer, order)
           }
+        }
       }
     }
 
@@ -291,13 +292,13 @@ object Combining {
     }
   }
 
-  object IntermediaryExpression {
+  object SequencingNonIO {
     case class Result(customer: Customer, order: Order, orderLines: Seq[OrderLine])
 
     def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] = {
       for {
         order <- findOrder(orderId)
-        customerId = order.customerId
+        customerId = order.customerId // Not a DBIO, no -> but =
         orderLines <- findLines(orderId)
         customer <- findCustomer(customerId)
       } yield Result(customer, order, orderLines)
@@ -308,10 +309,10 @@ object Combining {
     case class Result(customer: Customer, order: Order, lines: Seq[OrderLine])
 
     object Types {
-      def selectOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
+      def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
         for {
           order      /* Order          */ <- findOrder(orderId)       /* DBIO[Order]          */
-          customerId /* Long           */ =  order.id.get             /* Long                 */
+          customerId /* Long           */ = order.id.get              /* Long                 */
           lines      /* Seq[OrderLine] */ <- findLines(order.id.get)  /* DBIO[Seq[OrderLine]] */
           customer   /* Customer       */ <- findCustomer(customerId) /* DBIO[Customer]       */
         } yield Result(customer, order, lines) /* Result */
@@ -324,7 +325,7 @@ object Combining {
           order <- findOrder(orderId)          /* order                   */
           customerId = order.id.get            /* O    customerId         */
           lines <- findLines(order.id.get)     /* O    |    orderLines    */
-          customer<- findCustomer(customerId)  /* |    O    |    customer */
+          customer <- findCustomer(customerId) /* |    O    |    customer */
         } yield Result(customer, order, lines) /* O    |    O    O        */
       }
     }
@@ -351,11 +352,14 @@ object ConditionsAndLoops {
 
   def insertFwoByCustomerId(customerId: Long): DBIO[Unit] =
     for {
-      orderId <- (Orders.table returning Orders.table.map(_.id)) += Order(None, 1, LocalDate.now())
+      orderId <-
+        (Orders.table returning Orders.table.map(_.id)) +=
+          Order(None, customerId, LocalDate.now())
+
       _ <- OrderLines.table += OrderLine(None, orderId, 1, 1)
     } yield ()
 
-  def insertFwoWhenInactiveByCustomerId(customerId: Long): DBIO[Boolean] =
+  def conditionallyInsertFwo(customerId: Long): DBIO[Boolean] =
     for {
       orderCount <- findOrderCountByCustomerId(customerId)
 
@@ -366,32 +370,32 @@ object ConditionsAndLoops {
           DBIO.successful(false)
     } yield done
 
-  def insertFwosWhenInactiveByCustomerIds(customerIds: Seq[Long]): DBIO[Seq[Boolean]] = {
-    val seqOfDbio: Seq[DBIO[Boolean]] = customerIds.map(insertFwoWhenInactiveByCustomerId)
+  def repeatedlyInsertFwo(customerIds: Seq[Long]): DBIO[Seq[Boolean]] = {
+    val seqOfDbio: Seq[DBIO[Boolean]] = customerIds.map(conditionallyInsertFwo)
     val dbioOfSeq: DBIO[Seq[Boolean]] = DBIO.sequence(seqOfDbio)
     dbioOfSeq
   }
 }
 
 object RecursionWorksToo {
-  // In these examples DBIO.sequence would be much better.
-  // Recursion might be a code smell.
+  def insertCustomer(n: Int): DBIO[Int] =
+    Customers.table += Customer(None, s"First Name $n", s"Last Name $n")
 
-  def insertCustomers(n: Long): DBIO[Unit] =
-    if (n > 0)
-      for {
-        _ <- Customers.table += Customer(None, s"First Name $n", s"Last Name $n")
-        _ <- insertCustomers(n - 1)
-      } yield ()
-    else
-      DBIO.successful(())
+  object Recursion {
+    def insertCustomers(n: Int): DBIO[Int] =
+      if (n > 0)
+        for {
+          count <- insertCustomer(n)
+          restCount <- insertCustomers(n - 1) // Recursion
+        } yield count + restCount
+      else
+        DBIO.successful(0)
+  }
 
-  def insertAndReturnCustomers(n: Long): DBIO[Seq[Customer]] =
-    if (n > 0)
-      for {
-        customer <- (Customers.table returning Customers.table) += Customer(None, s"First Name $n", s"Last Name $n")
-        customers <- insertAndReturnCustomers(n - 1)
-      } yield customer +: customers
-    else
-      DBIO.successful(Seq.empty)
+  object Sequence {
+    def insertCustomersAndReturnIds(n: Int): DBIO[Int] = {
+      val counts = (1 to n).map(insertCustomer)
+      DBIO.fold(counts, 0)(_ + _)
+    }
+  }
 }
