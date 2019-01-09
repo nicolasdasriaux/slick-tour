@@ -28,7 +28,7 @@ slidenumbers: true
 * Many differences between databases and SQL dialects
 * A **profile** allows
   - to unify peculiarities,
-  - and also to benefit from them.
+  - and also to benefit from proprietary features.
 
 ---
 
@@ -67,12 +67,37 @@ import ExtendedPostgresProfile.api._
 
 ---
 
-# [fit] Describing **Tables** and Mapping **Record Classes**
+# [fit] Describing **Tables** and Mapping **Records**
+
+---
+
+# **Table** Classes
+
+**Table Class** describes a **table in a database**
+
+* Name of **table** in database (`Table`)
+* Name and type of **columns** in table (`column`)
+* **Mapping** of table row to Record Class (`mapTo`, `<>`)
+* Foreign keys (`foreignKey`)
+* Calculated columns
+
+---
+
+# **Record** Classes
+
+**Record Class** describes a **row in a table**
+
+* Practically a **case class**
+* **Strictly reflects table columns**, even foreign key columns
+  - Might be a selection of columns
+  - Might be **substructured**
+  - Might use **custom column types**
+* **Not part of the domain model**
+  - Additional mapping to and from the model
 
 ---
 
 # `Customers` Table and `Customer` Record
-
 
 ```scala
 case class Customer(id: Option[Long], firstName: String, lastName: String)
@@ -85,7 +110,7 @@ class Customers(tag: Tag) extends Table[Customer](tag, "customers") {
   def lastName = column[String]("last_name")
   def * = (id.?, firstName, lastName).mapTo[Customer]
   
-  def fullName = firstName ++ " " ++ lastName // Calculated field
+  def fullName = firstName ++ " " ++ lastName // Calculated column
 }
 
 object Customers {
@@ -471,7 +496,7 @@ val eventualSafeCompletion: Future[Unit] = eventualCompletion
 Await.result(eventualSafeCompletion, 5.seconds)
 ```
 
-* Will **block** until future completes
+* Will **block** until `Future` completes
   * Return the **value** in case of **success**
   * Raise the **exception** in case of a **failure**
   * **Timeout** after 5 seconds and fail with a `TimeoutException`
