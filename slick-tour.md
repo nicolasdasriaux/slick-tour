@@ -67,7 +67,28 @@ import ExtendedPostgresProfile.api._
 
 ---
 
-# [fit] Describing **Tables** and Mapping **Records**
+# [fit] Describing **Tables** and Mapping **Record Classes**
+
+---
+
+# `Customers` Table and `Customer` Record
+
+```scala
+class Customers(tag: Tag) extends Table[Customer](tag, "customers") {
+  def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
+  def firstName = column[String]("first_name")
+  def lastName = column[String]("last_name")
+  def * = (id.?, firstName, lastName).mapTo[Customer]
+  
+  def fullName = firstName ++ " " ++ lastName // Calculated column
+}
+
+object Customers {
+  val table = TableQuery[Customers]
+}
+
+case class Customer(id: Option[Long], firstName: String, lastName: String)
+```
 
 ---
 
@@ -94,29 +115,6 @@ import ExtendedPostgresProfile.api._
   - Might use **custom column types**
 * **Not part of the domain model**
   - Additional mapping to and from the model
-
----
-
-# `Customers` Table and `Customer` Record
-
-```scala
-case class Customer(id: Option[Long], firstName: String, lastName: String)
-```
-
-```scala
-class Customers(tag: Tag) extends Table[Customer](tag, "customers") {
-  def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
-  def firstName = column[String]("first_name")
-  def lastName = column[String]("last_name")
-  def * = (id.?, firstName, lastName).mapTo[Customer]
-  
-  def fullName = firstName ++ " " ++ lastName // Calculated column
-}
-
-object Customers {
-  val table = TableQuery[Customers]
-}
-```
 
 ---
 
@@ -150,10 +148,6 @@ class Customers(tag: Tag) extends Table[Customer](tag, "customers") {
 # `Orders` Table and `Order` Record
 
 ```scala
-case class Order(id: Option[Long], customerId: Long, date: LocalDate)
-```
-
-```scala
 class Orders(tag: Tag) extends Table[Order](tag, "orders") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
   def customerId = column[Long]("customer_id")
@@ -166,15 +160,13 @@ class Orders(tag: Tag) extends Table[Order](tag, "orders") {
 object Orders {
   val table = TableQuery[Orders]
 }
+
+case class Order(id: Option[Long], customerId: Long, date: LocalDate)
 ```
 
 ---
 
 # `OrderLines` Table and `OrderLine` Record
-
-```scala
-case class OrderLine(id: Option[Long], orderId: Long, itemId: Long, quantity: Int)
-```
 
 ```scala
 class OrderLines(tag: Tag) extends Table[OrderLine](tag, "order_lines") {
@@ -191,15 +183,13 @@ class OrderLines(tag: Tag) extends Table[OrderLine](tag, "order_lines") {
 object OrderLines {
   val table = TableQuery[OrderLines]
 }
+
+case class OrderLine(id: Option[Long], orderId: Long, itemId: Long, quantity: Int)
 ```
 
 ---
 
 # `Items` Table and `Item` Record
-
-```scala
-case class Item(id: Option[Long], name: String)
-```
 
 ```scala
 class Items(tag: Tag) extends Table[Item](tag, "items") {
@@ -211,25 +201,29 @@ class Items(tag: Tag) extends Table[Item](tag, "items") {
 object Items {
   val table = TableQuery[Items]
 }
+
+case class Item(id: Option[Long], name: String)
 ```
 
 ---
 
 # Substructuring a Record Class
 
-* [Substructuring the record class](https://stackoverflow.com/questions/42399431/22-column-limit-for-procedures/42414478#42414478)
-  - `Customer` record class can have an `address` attribute of type `Address` that maps on some of the fields in the `customers` table.
-  - `Order` record can also hold a `billingAddress` and a `shippingAddress` (also of type `Address`), each mapping on different fields of the `orders` table.
-  - Much better than super flat record
-  - Also allows to overcome the 22 fields limit
+[Substructuring the record class](https://stackoverflow.com/questions/42399431/22-column-limit-for-procedures/42414478#42414478)
+
+* `Customer` record class can have an `address` attribute of type `Address` that maps on some of the fields in the `customers` table.
+* `Order` record can also hold a `billingAddress` and a `shippingAddress` (also of type `Address`), each mapping on different fields of the `orders` table.
+* Much better than super flat record
+* Also allows to overcome the 22 fields limit
 
 ---
 
 # Custom Column Types
 
-* [Custom column types](http://slick.lightbend.com/doc/3.2.3/userdefined.html#scalar-types)
-  - `Order` record class can have an attribute of enumeration type `ShippingStatus`.
-  - `ShippingStatus` can be declared as custom column type to be stored as `VARCHAR` in the `orders` table.
+[Custom column types](http://slick.lightbend.com/doc/3.2.3/userdefined.html#scalar-types)
+
+* `Order` record class can have an attribute of enumeration type `OrderStatus`.
+* `OrderStatus` can be declared as custom column type to be stored as `VARCHAR` in the `orders` table.
 
 ---
 
@@ -408,18 +402,13 @@ val transactionalProgram: DBIO[Result] = program.transactionally
 ```
 ecommerce {
   database {
-    profile = "slicktour.ecommerce.db.ExtendedPostgresProfile$"
-
-    db {
-      url = "jdbc:postgresql://localhost:5432/ecommerce?currentSchema=ecommerce"
-      driver = "org.postgresql.Driver"
-      user = "ecommerceapi"
-      password = "password"
-    }
+    url = "jdbc:postgresql://localhost:5432/ecommerce?currentSchema=ecommerce"
+    driver = "org.postgresql.Driver"
+    user = "ecommerceapi"
+    password = "password"
   }
 }
 ```
-
 ---
 
 # Loading Database Configuration
@@ -428,8 +417,8 @@ ecommerce {
 // Load configuration from application.conf (using Lightbend Config library)
 val config = ConfigFactory.load()
 
-// Extract database configuration from configuration
-val databaseConfig = DatabaseConfig.forConfig[JdbcProfile](
+// Create database object from configuration
+val database = Database.forConfig(
   "ecommerce.database",
   config
 )
@@ -440,7 +429,6 @@ val databaseConfig = DatabaseConfig.forConfig[JdbcProfile](
 # Running `DBIO` on Database
 
 ```scala
-val database = databaseConfig.db
 val eventualResult: Future[Result] = database.run(transactionalProgram)
 ```
 
@@ -789,7 +777,7 @@ def insertCustomers(n: Int): DBIO[Int] = {
 * Recursion can be hard to read
 * Prefer using simpler alternatives whenever possible
   - `DBIO.sequence`
-  - `DBIO.fold`...
+  - `DBIO.fold`
 
 ---
 

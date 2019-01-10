@@ -4,8 +4,6 @@ import java.time.LocalDate
 
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.Logger
-import slick.basic.DatabaseConfig
-import slick.jdbc.JdbcProfile
 import slicktour.ecommerce.db.ExtendedPostgresProfile.api._
 import slicktour.ecommerce.db._
 
@@ -112,21 +110,20 @@ object SlickApp {
       ordersAndOrderLines <- selectOrdersAndOrderLinesOrderedDBIO
     } yield Result(insertedCustomers, customers, maybeItem, ordersAndOrderLines)
 
+    val transactionalProgram: DBIO[Result] = program.transactionally
+
     // -----------------------------------------------------------------------------------------------------------------
     // Running DBIO
     // -----------------------------------------------------------------------------------------------------------------
     // Load configuration from application.conf (using Lightbend Config library)
     val config = ConfigFactory.load()
 
-    // Extract database configuration from configuration
-    val databaseConfig = DatabaseConfig.forConfig[JdbcProfile](
+    // Create database object from configuration
+    val database = Database.forConfig(
       "ecommerce.database",
       config
     )
 
-    val transactionalProgram: DBIO[Result] = program.transactionally
-
-    val database = databaseConfig.db
     val eventualResult: Future[Result] = database.run(transactionalProgram)
 
     // -----------------------------------------------------------------------------------------------------------------
