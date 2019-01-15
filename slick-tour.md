@@ -424,7 +424,7 @@ ecommerce {
     # numThreads (Int, optional, default: 20)
     # queueSize (Int, optional, default: 1000)
 
-    # HikariCP Configuration
+    # HikariCP Configuration (add "slick-hikaricp" dependency)
     url = "jdbc:postgresql://localhost:5432/ecommerce?currentSchema=ecommerce"
     driver = "org.postgresql.Driver"
     user = "ecommerceapi"
@@ -528,10 +528,10 @@ Await.result(eventualSafeCompletion, 5.seconds)
 
 ```scala
 val success: DBIO[Int] = DBIO.successful(42)
-// Will produce value 42 when run
+// Will produce result 42 when run
 
 val failure: DBIO[Nothing] = DBIO.failed(new IllegalStateException("Failure"))
-// Will never produce a value and fail with IllegalStateException when run
+// Will never produce a result and fail with IllegalStateException when run
 ```
 
 ---
@@ -838,7 +838,7 @@ def findOrderExistenceByCustomerId(customerId: Long): DBIO[Boolean] =
 
 # Configuring _Slick_ Logs in `logback.xml`
 
-Add _Logback_ dependency and update `logback.xml`
+Be sure to add _Logback_ dependency and a `logback.xml` file
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -872,6 +872,8 @@ Add _Logback_ dependency and update `logback.xml`
 
 * [Lightbend Config](https://github.com/lightbend/config), application configuration (`application.conf`)
 * [SL4J](https://www.slf4j.org/), logging facade
+  * Already a dependency of _Slick_... and _Akka HTTP_
+* [Scala Logging](https://github.com/lightbend/scala-logging), recommended Scala wrapper for SLF4J
 * [Logback](https://logback.qos.ch/), standard implementation for SLF4J
 * [HikariCP](https://github.com/brettwooldridge/HikariCP), database connection pool
 * All compatible with _Akka HTTP_
