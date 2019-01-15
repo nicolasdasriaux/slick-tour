@@ -141,7 +141,7 @@ object SlickApp {
     val eventualSafeCompletion: Future[Unit] = eventualCompletion
       .transform {
         case failure @ Failure(exception) =>
-          // Log exception and key failure as is
+          // Log exception and keep failure as is
           logger.error("Exception occurred", exception)
           failure
 

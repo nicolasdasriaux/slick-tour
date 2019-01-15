@@ -13,8 +13,8 @@ slidenumbers: true
 -- http://slick.lightbend.com
 
 * Library to access **relational databases**
-* Can express queries in a functional way (`map`, `filter`...)
-* Also supports plain SQL
+* Can express **queries** in a **functional way** (`map`, `filter`...)
+* Also supports **plain SQL**
 * Supports asynchronicity (`Future`) and streaming (reactive streams)
 
 ---
@@ -60,14 +60,16 @@ object ExtendedPostgresProfile extends ExtendedPostgresProfile
 import ExtendedPostgresProfile.api._
 ```
 
-* Import when in need to
-  - to describe **tables**,
-  - to describe **queries**,
-  - and more.
+Import when in need to
+
+* to connect to the **database**
+* to describe **tables**,
+* to describe **queries**,
+* and more.
 
 ---
 
-# [fit] Describing **Tables** and Mapping **Record Classes**
+# [fit] Describing **Tables** and Mapping **Records**
 
 ---
 
@@ -212,8 +214,8 @@ case class Item(id: Option[Long], name: String)
 
 [Substructuring the record class](https://stackoverflow.com/questions/42399431/22-column-limit-for-procedures/42414478#42414478)
 
-* `Customer` record class can have an `address` attribute of type `Address` that maps on some of the fields in the `customers` table.
-* `Order` record can also hold a `billingAddress` and a `shippingAddress` (also of type `Address`), each mapping on different fields of the `orders` table.
+* `Customer` record class can have an `address` attribute of type `Address` that maps to some of the fields in the `customers` table.
+* `Order` record can also hold a `billingAddress` and a `shippingAddress` (also of type `Address`), each mapping to different fields of the `orders` table.
 * Much better than super flat record
 * Also allows to overcome the 22 fields limit
 
@@ -313,9 +315,9 @@ DBIO[A] // A = Result
 ```
 
 * An immutable object *describing* a **program accessing a database**
-* Does no side-effect, just a program waiting to be run
+* Does **no side-effect**, just a program waiting to be run
 * Must be **interpreted** against a **database** to do side-effects
-* When **interpreted**, it will either
+* When interpreted, it will either
   - **succeed** with a **result** of type `A`,
   - or **fail** holding an **exception**.
 
@@ -368,7 +370,6 @@ val updateCustomerDBIO: DBIO[Int] =
 # Deleting (`DELETE`)
 
 ```scala
-
 val deleteCustomerDBIO: DBIO[Int] =
   Customers.table
     .filter(_.firstName === "April")
@@ -421,20 +422,21 @@ ecommerce {
     # http://slick.lightbend.com/doc/3.2.3/api/index.html#
     # slick.jdbc.JdbcBackend$DatabaseFactoryDef@forConfig(String,Config,Driver,ClassLoader):Database
 
-    # numThreads (Int, optional, default: 20)
-    # queueSize (Int, optional, default: 1000)
+    # numThreads = 200           # (Int, optional, default: 20)
+    # queueSize = 100            # (Int, optional, default: 1000)
 
     # HikariCP Configuration (add "slick-hikaricp" dependency)
     url = "jdbc:postgresql://localhost:5432/ecommerce?currentSchema=ecommerce"
     driver = "org.postgresql.Driver"
     user = "ecommerceapi"
     password = "password"
-    # isolation (String, optional)
-    # maxConnections (Int, optional, default: numThreads)
-    # minConnections (Int, optional, default: numThreads)
+    # isolation = SERIALIZABLE   # (String, optional)
+    # maxConnections = 20        # (Int, optional, default: numThreads)
+    # minConnections = 20        # (Int, optional, default: numThreads)
   }
 }
 ```
+
 ---
 
 # Loading Database Configuration
@@ -491,7 +493,7 @@ val eventualCompletion: Future[Unit] = for {
 val eventualSafeCompletion: Future[Unit] = eventualCompletion
   .transform {
     case failure @ Failure(exception) =>
-      // Log exception and key failure as is
+      // Log exception and keep failure as is
       logger.error("Exception occurred", exception)
       failure
 
@@ -624,6 +626,34 @@ for {
   orderLines <- findLines(orderId)
   customer <- findCustomer(customerId)
 } yield Result(customer, order, orderLines)
+```
+
+---
+
+# Pyramid of `map`s and `flatMap`s :smiling_imp:
+
+```scala
+def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] =
+  findOrder(orderId).flatMap { order =>
+    findCustomer(order.customerId).flatMap { customer =>
+      findLines(orderId).map { orderLines =>
+        Result(customer, order, orderLines)
+      }
+    }
+  }
+```
+
+---
+
+# Flatten Them All :innocent:
+
+```scala
+def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] =
+  for {
+    order <- findOrder(orderId)
+    customer <- findCustomer(order.customerId)
+    orderLines <- findLines(orderId)
+  } yield Result(customer, order, orderLines)
 ```
 
 ---
@@ -863,17 +893,17 @@ Be sure to add _Logback_ dependency and a `logback.xml` file
   - [Queries](http://slick.lightbend.com/doc/3.2.3/queries.html)
   - [Database I/O Actions](http://slick.lightbend.com/doc/3.2.3/dbio.html)
   - [Database Configuration](http://slick.lightbend.com/doc/3.2.3/database.html)
-  - [Logging](http://slick.lightbend.com/doc/3.2.3/config.html#logging) with SL4J
+  - [Logging](http://slick.lightbend.com/doc/3.2.3/config.html#logging) with _SLF4J_
 * [Essential Slick](https://underscore.io/books/essential-slick/) book
 
 ---
 
-# Related libraries supported by _Slick_
+# Related Libraries Supported by _Slick_
 
 * [Lightbend Config](https://github.com/lightbend/config), application configuration (`application.conf`)
 * [SL4J](https://www.slf4j.org/), logging facade
   * Already a dependency of _Slick_... and _Akka HTTP_
-* [Scala Logging](https://github.com/lightbend/scala-logging), recommended Scala wrapper for SLF4J
-* [Logback](https://logback.qos.ch/), standard implementation for SLF4J
+* [Scala Logging](https://github.com/lightbend/scala-logging), recommended Scala wrapper for _SLF4J_
+* [Logback](https://logback.qos.ch/), standard implementation for _SLF4J_
 * [HikariCP](https://github.com/brettwooldridge/HikariCP), database connection pool
 * All compatible with _Akka HTTP_
