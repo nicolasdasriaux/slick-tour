@@ -362,7 +362,7 @@ object ConditionsAndLoops {
 
       done <-
         if (orderCount == 0)
-          insertFwoByCustomerId(customerId).andThen(DBIO.successful(true))
+          insertFwoByCustomerId(customerId).flatMap(_ => DBIO.successful(true))
         else
           DBIO.successful(false)
     } yield done
@@ -391,8 +391,17 @@ object RecursionWorksToo {
 
   object Sequence {
     def insertCustomers(n: Int): DBIO[Int] = {
-      val counts = (1 to n).map(insertCustomer)
-      DBIO.fold(counts, 0)(_ + _)
+      val counts: Seq[DBIO[Int]] = (1 to n).map(insertCustomer)
+      val totalCount: DBIO[Int] = DBIO.fold(counts, 0)(_ + _)
+      totalCount
     }
   }
+}
+
+object Existence {
+  def findOrderExistenceByCustomerId(customerId: Long): DBIO[Boolean] =
+    Orders.table
+      .filter(_.customerId === customerId)
+      .exists
+      .result
 }

@@ -100,6 +100,7 @@ case class Customer(id: Option[Long], firstName: String, lastName: String)
 * Name and type of **columns** in table (`column`)
 * **Mapping** of table row to Record Class (`mapTo`, `<>`)
 * Foreign keys (`foreignKey`)
+* Indexes (`index`)
 * Calculated columns
 
 ---
@@ -305,6 +306,21 @@ val selectOrdersAndOrderLinesOrderedQuery =
 
 ---
 
+# `DBIO[A]`
+
+```scala
+DBIO[A] // A = Result
+```
+
+* An immutable object *describing* a **program accessing a database**
+* Does no side-effect, just a program waiting to be run
+* Must be **interpreted** against a **database** to do side-effects
+* When **interpreted**, it will either
+  - **succeed** with a **result** of type `A`,
+  - or **fail** holding an **exception**.
+
+---
+
 # Querying (`SELECT`)
 
 ```scala
@@ -389,7 +405,7 @@ val transactionalProgram: DBIO[Result] = program.transactionally
 ```
 
 * `transactionally` method results in a `DBIO` that will be run as a **single transaction**.
-* Otherwise, all composing `DBIO`s would be run in a separate transaction.
+* Otherwise, each composing `DBIO` would be run in a separate transaction.
 
 ---
 
@@ -399,13 +415,23 @@ val transactionalProgram: DBIO[Result] = program.transactionally
 
 # Database Configuration (`application.conf`)
 
-```
+```bash
 ecommerce {
   database {
+    # http://slick.lightbend.com/doc/3.2.3/api/index.html#
+    # slick.jdbc.JdbcBackend$DatabaseFactoryDef@forConfig(String,Config,Driver,ClassLoader):Database
+
+    # numThreads (Int, optional, default: 20)
+    # queueSize (Int, optional, default: 1000)
+
+    # HikariCP Configuration
     url = "jdbc:postgresql://localhost:5432/ecommerce?currentSchema=ecommerce"
     driver = "org.postgresql.Driver"
     user = "ecommerceapi"
     password = "password"
+    # isolation (String, optional)
+    # maxConnections (Int, optional, default: numThreads)
+    # minConnections (Int, optional, default: numThreads)
   }
 }
 ```
@@ -432,10 +458,11 @@ val database = Database.forConfig(
 val eventualResult: Future[Result] = database.run(transactionalProgram)
 ```
 
-* `run` returns a `Future`, a promise for a result that will eventually
-  - **succeed** with a **value**,
-  - or **fail** with an **exception**.
-* In case of failure, exception is just used as a value and is **never thrown**.
+* Interprets the program described by the `DBIO[A]` against a database
+* Returns a `Future[A]`, a **promise** for a result that will eventually
+  - **succeed** with a **result** of type `A`,
+  - or **fail** holding an **exception**.
+* Exception is just used as a value and is **never thrown**.
 
 ---
 
@@ -485,7 +512,7 @@ Await.result(eventualSafeCompletion, 5.seconds)
 ```
 
 * Will **block** until `Future` completes
-  * Return the **value** in case of **success**
+  * Return the **result** in case of **success**
   * Raise the **exception** in case of a **failure**
   * **Timeout** after 5 seconds and fail with a `TimeoutException`
 * Use this very sparingly!
@@ -724,7 +751,7 @@ def conditionallyInsertFwo(customerId: Long): DBIO[Boolean] =
 
     done <-
       if (orderCount == 0)
-        insertFwoByCustomerId(customerId).andThen(DBIO.successful(true))
+        insertFwoByCustomerId(customerId).flatMap(_ => DBIO.successful(true))
       else
         DBIO.successful(false)
   } yield done
@@ -769,8 +796,9 @@ def insertCustomers(n: Int): DBIO[Int] =
 
 ```scala
 def insertCustomers(n: Int): DBIO[Int] = {
-  val counts = (1 to n).map(insertCustomer)
-  DBIO.fold(counts, 0)(_ + _)
+  val counts: Seq[DBIO[Int]] = (1 to n).map(insertCustomer)
+  val totalCount: DBIO[Int] = DBIO.fold(counts, 0)(_ + _)
+  totalCount
 }
 ```
 
@@ -785,17 +813,65 @@ def insertCustomers(n: Int): DBIO[Int] = {
 
 ---
 
-# What We Could Have Done Better
+# Testing for Existence
 
-* When testing for **existence**
-  -  Avoid `.size.result` that counts all matching records
-  -  Prefer `.result.headOption.map(_.isDefined)` that reads only first record
-* Use **Compiled Queries** for parameterized queries
-* Favor `.result.headOption` over `.result.head`
+``` scala
+def findOrderExistenceByCustomerId(customerId: Long): DBIO[Boolean] =
+  Orders.table
+    .filter(_.customerId === customerId)
+    .exists
+    .result
+```
+
+*  Avoid `.size` that counts all matching records
+*  Prefer `.exists` that stops on first matching record
+
+---
+
+# `.headOption` vs `.head`
+
+* `.result.headOption` **always succeeds** with an `Option[T]`
+* `.result.head` **might succeed** with a `T` **or fail** with an exception
+* Favor `.result.headOption`
+
+---
+
+# Configuring _Slick_ Logs in `logback.xml`
+
+Add _Logback_ dependency and update `logback.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- ... -->
+    <logger name="slick.basic" level="INFO"/>
+    <logger name="slick.compiler" level="INFO"/>
+    <logger name="slick.jdbc" level="DEBUG"/> <!-- Log SQL -->
+    <logger name="slick.memory" level="INFO"/>
+    <logger name="slick.relational" level="INFO"/>
+    <logger name="slick.util" level="INFO"/>
+
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+</configuration>
+```
 
 ---
 
 # More about _Slick_
 
-* [Documentation](http://slick.lightbend.com/docs/)
+* [Slick](http://slick.lightbend.com/docs/) documentation
+  - [Queries](http://slick.lightbend.com/doc/3.2.3/queries.html)
+  - [Database I/O Actions](http://slick.lightbend.com/doc/3.2.3/dbio.html)
+  - [Database Configuration](http://slick.lightbend.com/doc/3.2.3/database.html)
+  - [Logging](http://slick.lightbend.com/doc/3.2.3/config.html#logging) with SL4J
 * [Essential Slick](https://underscore.io/books/essential-slick/) book
+
+---
+
+# Related libraries supported by _Slick_
+
+* [Lightbend Config](https://github.com/lightbend/config), application configuration (`application.conf`)
+* [SL4J](https://www.slf4j.org/), logging facade
+* [Logback](https://logback.qos.ch/), standard implementation for SLF4J
+* [HikariCP](https://github.com/brettwooldridge/HikariCP), database connection pool
+* All compatible with _Akka HTTP_
