@@ -34,6 +34,6 @@ lazy val root = (project in file("."))
 
     resetDb := {
       reStop.value
-      "bash db/ecommerce-reset-db.sh".!
+      "bash db/reset-db.sh".!
     },
   )

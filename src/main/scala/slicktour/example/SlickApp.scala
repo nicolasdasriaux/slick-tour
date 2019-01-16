@@ -405,3 +405,15 @@ object Existence {
       .exists
       .result
 }
+
+object DumpSchema {
+  def main(args: Array[String]): Unit = {
+    val schema =
+      Customers.table.schema ++
+        Orders.table.schema ++
+        OrderLines.table.schema ++
+        Items.table.schema
+
+    schema.createStatements.foreach(sql => println(s"$sql;"))
+  }
+}
