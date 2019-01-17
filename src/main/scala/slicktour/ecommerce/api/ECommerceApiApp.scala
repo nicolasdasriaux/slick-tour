@@ -6,9 +6,8 @@ import akka.http.scaladsl.server.Directives._
 import akka.stream.{ActorMaterializer, Materializer}
 import com.typesafe.config.ConfigFactory
 import configs.syntax._
-import slick.basic.DatabaseConfig
-import slick.jdbc.JdbcProfile
 import slicktour.ecommerce.api.ECommerceApiProtocol._
+import slicktour.ecommerce.db.ExtendedPostgresProfile.api._
 import slicktour.ecommerce.service.customer.{Customer, CustomerPost, CustomerService}
 
 import scala.concurrent.ExecutionContext
@@ -16,14 +15,13 @@ import scala.concurrent.ExecutionContext
 object ECommerceApiApp {
   def main(args: Array[String]): Unit = {
     val config = ConfigFactory.load()
-    val databaseConfig = DatabaseConfig.forConfig[JdbcProfile]("ecommerce.database", config)
     val apiConfig = config.get[ECommerceApiConfig]("ecommerce.api").value
 
     implicit val actorSystem: ActorSystem = ActorSystem("ecommerce-api")
     implicit val executionContext: ExecutionContext = actorSystem.dispatcher
     implicit val materializer: Materializer = ActorMaterializer()
 
-    val database = databaseConfig.db
+    val database = Database.forConfig("ecommerce.database", config)
     val customerService = new CustomerService(database)
 
     // @formatter:off

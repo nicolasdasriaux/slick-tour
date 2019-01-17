@@ -234,6 +234,22 @@ case class Item(id: Option[Long], name: String)
 
 ---
 
+# Query (`Query`)
+
+```scala
+Query[+E, U, C[_]] /* extends Rep[C[U]] */
+// E = SELECT Row Representation
+// U = In-memory Row Class
+// C = Collection Type (Seq, Set...)
+```
+
+* An immutable object *describing* a **`SELECT` query** retrieving **rows**
+* Does **no side-effect**, just a query waiting to be run
+* Must be **interpreted** against a **database** to do side-effects
+* Will return a `C[U]` when run (for example `Seq[Customer]`)
+ 
+---
+
 # Filtering (`WHERE`)
 
 ```scala
@@ -308,7 +324,7 @@ val selectOrdersAndOrderLinesOrderedQuery =
 
 ---
 
-# `DBIO[A]`
+# Database I/O (`DBIO`)
 
 ```scala
 DBIO[A] // A = Result
