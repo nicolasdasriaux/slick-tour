@@ -243,7 +243,7 @@ Query[+E, U, C[_]] /* extends Rep[C[U]] */
 // C = Collection Type (Seq, Set...)
 ```
 
-* An immutable object *describing* a **`SELECT` query** retrieving **rows**
+* Describes a **`SELECT` query** retrieving **rows**
 * Does **no side-effect**, just a query waiting to be run
 * Must be **interpreted** against a **database** to do side-effects
 * Will return a `C[U]` when run (for example `Seq[Customer]`)
@@ -330,7 +330,7 @@ val selectOrdersAndOrderLinesOrderedQuery =
 DBIO[A] // A = Result
 ```
 
-* An immutable object *describing* a **program accessing a database**
+* Describes a **program accessing a database**
 * Does **no side-effect**, just a program waiting to be run
 * Must be **interpreted** against a **database** to do side-effects
 * When interpreted, it will either
