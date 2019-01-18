@@ -5,13 +5,12 @@ To do integration testing of services, use sample code in `ECommerceTestApp`.
 ## Customer Service
 
 One by one, implement methods of `CustomerService`.
-For this, repeatedly perform the following step.
-Be sure to test 
+For this, repeatedly perform the following steps.
 
 1. Implement required method in `CustomerDBIO` class
 2. Implement required method in `DbCustomerMapper` class or `CustomerMapper` class
 3. Implement targeted `OrderService` method
-4. Test this last method
+4. Test this last method in integration
 
 ## Order Service
 
