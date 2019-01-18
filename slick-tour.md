@@ -767,7 +767,7 @@ Visually flattens, but still implicitly nested
 def findOrderCountByCustomerId(customerId: Long): DBIO[Int] =
   Orders.table
     .filter(_.customerId === customerId)
-    .size
+    .size // Rep[Int]
     .result
 ```
 
@@ -889,7 +889,7 @@ alter table "order_lines" add constraint "fk_order_lines_order_id" foreign key("
 def findOrderExistenceByCustomerId(customerId: Long): DBIO[Boolean] =
   Orders.table
     .filter(_.customerId === customerId)
-    .exists
+    .exists // Rep[Boolean]
     .result
 ```
 

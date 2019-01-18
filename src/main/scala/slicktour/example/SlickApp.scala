@@ -344,7 +344,7 @@ object ConditionsAndLoops {
   def findOrderCountByCustomerId(customerId: Long): DBIO[Int] =
     Orders.table
       .filter(_.customerId === customerId)
-      .size
+      .size // Rep[Int]
       .result
 
   def insertFwoByCustomerId(customerId: Long): DBIO[Unit] =
@@ -402,7 +402,7 @@ object Existence {
   def findOrderExistenceByCustomerId(customerId: Long): DBIO[Boolean] =
     Orders.table
       .filter(_.customerId === customerId)
-      .exists
+      .exists // Rep[Boolean]
       .result
 }
 
