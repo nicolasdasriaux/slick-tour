@@ -9,6 +9,7 @@ import configs.syntax._
 import slicktour.ecommerce.api.ECommerceApiProtocol._
 import slicktour.ecommerce.db.ExtendedPostgresProfile.api._
 import slicktour.ecommerce.service.customer.{Customer, CustomerPost, CustomerService}
+import slicktour.ecommerce.service.order.OrderService
 
 import scala.concurrent.ExecutionContext
 
@@ -23,6 +24,7 @@ object ECommerceApiApp {
 
     val database = Database.forConfig("ecommerce.database", config)
     val customerService = new CustomerService(database)
+    val orderService = new OrderService(database)
 
     // @formatter:off
     val route =
@@ -50,6 +52,10 @@ object ECommerceApiApp {
               complete(s"Updated $insertCount customers")
             }
           }
+        } ~
+        (get & path("orders" / LongNumber)) { id =>
+          val eventualOrder = orderService.find(id)
+          complete(eventualOrder)
         }
       }
     // @formatter:on
