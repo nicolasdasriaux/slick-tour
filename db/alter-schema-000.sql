@@ -11,12 +11,6 @@ CREATE TABLE "customers"
   "last_name"  VARCHAR   NOT NULL
 );
 
-CREATE TABLE "items"
-(
-  "id"   BIGSERIAL NOT NULL PRIMARY KEY,
-  "name" VARCHAR   NOT NULL
-);
-
 CREATE TABLE "orders"
 (
   "id"          BIGSERIAL NOT NULL PRIMARY KEY,
@@ -30,6 +24,14 @@ CREATE TABLE "order_lines"
   "order_id" BIGINT    NOT NULL,
   "item_id"  BIGINT    NOT NULL,
   "quantity" INTEGER   NOT NULL
+);
+
+CREATE UNIQUE INDEX "idx_order_lines_order_id_item_id" ON "order_lines" ("order_id", "item_id");
+
+CREATE TABLE "items"
+(
+  "id"   BIGSERIAL NOT NULL PRIMARY KEY,
+  "name" VARCHAR   NOT NULL
 );
 
 ALTER TABLE "orders"

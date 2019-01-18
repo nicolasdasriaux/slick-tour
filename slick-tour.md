@@ -181,6 +181,7 @@ class OrderLines(tag: Tag) extends Table[OrderLine](tag, "order_lines") {
 
   def order = foreignKey("fk_order_lines_order_id", orderId, Orders.table)(_.id)
   def item = foreignKey("fk_order_lines_item_id", itemId, Items.table)(_.id)
+  def orderIdItemIdIndex = index("idx_order_lines_order_id_item_id", (orderId, itemId), unique = true)
 }
 
 object OrderLines {
@@ -875,6 +876,7 @@ schema.createStatements.foreach(sql => println(s"$sql;"))
 create table "customers" ("id" BIGSERIAL NOT NULL PRIMARY KEY,"first_name" VARCHAR NOT NULL,"last_name" VARCHAR NOT NULL);
 create table "orders" ("id" BIGSERIAL NOT NULL PRIMARY KEY,"customer_id" BIGINT NOT NULL,"date" date NOT NULL);
 create table "order_lines" ("id" BIGSERIAL NOT NULL PRIMARY KEY,"order_id" BIGINT NOT NULL,"item_id" BIGINT NOT NULL,"quantity" INTEGER NOT NULL);
+create unique index "idx_order_lines_order_id_item_id" on "order_lines" ("order_id","item_id");
 create table "items" ("id" BIGSERIAL NOT NULL PRIMARY KEY,"name" VARCHAR NOT NULL);
 alter table "orders" add constraint "fk_orders_customer_id" foreign key("customer_id") references "customers"("id") on update NO ACTION on delete NO ACTION;
 alter table "order_lines" add constraint "fk_order_lines_item_id" foreign key("item_id") references "items"("id") on update NO ACTION on delete NO ACTION;
