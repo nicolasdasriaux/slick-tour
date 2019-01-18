@@ -15,7 +15,7 @@ slidenumbers: true
 * Library to access **relational databases**
 * Can express **queries** in a **functional way** (`map`, `filter`...)
 * Also supports **plain SQL**
-* Supports asynchronicity (`Future`) and streaming (reactive streams)
+* Supports asynchronicity (`Future`) and streaming (_Reactive Streams_)
 
 ---
 
