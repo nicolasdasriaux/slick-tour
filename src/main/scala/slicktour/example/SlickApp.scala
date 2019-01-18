@@ -295,7 +295,7 @@ object Combining {
     def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] = {
       for {
         order <- findOrder(orderId)
-        customerId = order.customerId // Not a DBIO, no -> but =
+        customerId = order.customerId // Not a DBIO, '=' instead of '<-'
         orderLines <- findLines(orderId)
         customer <- findCustomer(customerId)
       } yield Result(customer, order, orderLines)
@@ -309,7 +309,7 @@ object Combining {
       def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
         for {
           order      /* Order          */ <- findOrder(orderId)       /* DBIO[Order]          */
-          customerId /* Long           */ = order.id.get              /* Long                 */
+          customerId /* Long           */ =  order.customerId         /* Long                 */
           lines      /* Seq[OrderLine] */ <- findLines(order.id.get)  /* DBIO[Seq[OrderLine]] */
           customer   /* Customer       */ <- findCustomer(customerId) /* DBIO[Customer]       */
         } yield Result(customer, order, lines) /* Result */
@@ -320,7 +320,7 @@ object Combining {
       def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
         for {
           order <- findOrder(orderId)          /* order                   */
-          customerId = order.id.get            /* O    customerId         */
+          customerId = order.customerId        /* O    customerId         */
           lines <- findLines(order.id.get)     /* O    |    orderLines    */
           customer <- findCustomer(customerId) /* |    O    |    customer */
         } yield Result(customer, order, lines) /* O    |    O    O        */
@@ -331,7 +331,7 @@ object Combining {
       def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
         for {
              order <- findOrder(orderId)
-          /* | */ customerId = order.id.get
+          /* | */ customerId = order.customerId
           /* |    | */ lines <- findLines(order.id.get)
           /* |    |    | */ customer <- findCustomer(customerId)
         } /* |    |    |    | */ yield Result(customer, order, lines)

@@ -637,12 +637,14 @@ def findOrderCustomer(orderId: Long): DBIO[Customer] = {
 # Sequencing with Non-`DBIO`
 
 ```scala
-for {
-  order <- findOrder(orderId)
-  customerId = order.customerId // Not a DBIO, '=' instead of '<-'
-  orderLines <- findLines(orderId)
-  customer <- findCustomer(customerId)
-} yield Result(customer, order, orderLines)
+def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] = {
+  for {
+    order <- findOrder(orderId)
+    customerId = order.customerId // Not a DBIO, '=' instead of '<-'
+    orderLines <- findLines(orderId)
+    customer <- findCustomer(customerId)
+  } yield Result(customer, order, orderLines)
+}
 ```
 
 ---
@@ -692,7 +694,7 @@ def findOrderAndCustomerAndOrderLines(orderId: Long): DBIO[Result] =
 def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
   for {
     order      /* Order          */ <- findOrder(orderId)       /* DBIO[Order]          */
-    customerId /* Long           */ =  order.id.get             /* Long                 */
+    customerId /* Long           */ =  order.customerId         /* Long                 */
     lines      /* Seq[OrderLine] */ <- findLines(order.id.get)  /* DBIO[Seq[OrderLine]] */
     customer   /* Customer       */ <- findCustomer(customerId) /* DBIO[Customer]       */
   } yield Result(customer, order, lines) /* Result */
@@ -712,7 +714,7 @@ def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
 |--------|--------------------------|---|------------------------|
 | result | `DBIO[R]`                |   | `R`                    |
 
-* Combines **only `DBIO[T]`**, **no mix** with `Option[T]`, `Future[T]`, `Seq[T]`...
+* **Only `DBIO[T]`**, **no mix** with `Option[T]`, `Future[T]`, `Seq[T]`... Otherwise :bomb: _it won't compile_ :bomb:
 * But it could be **only** `Option[T]`, or **only** `Future[T]`, or **only** `Seq[T]`...
 
 ---
@@ -723,9 +725,9 @@ def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
 def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
   for {
     order <- findOrder(orderId)          /* order                   */
-    customerId = order.id.get            /* O    customerId         */
+    customerId = order.customerId        /* O    customerId         */
     lines <- findLines(order.id.get)     /* O    |    orderLines    */
-    customer<- findCustomer(customerId)  /* |    O    |    customer */
+    customer <- findCustomer(customerId) /* |    O    |    customer */
   } yield Result(customer, order, lines) /* O    |    O    O        */
 }
 ```
@@ -738,7 +740,7 @@ def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
 def findOrderAndCustomerAndLines(orderId: Long): DBIO[Result] = {
   for {
        order <- findOrder(orderId)
-    /* | */ customerId = order.id.get
+    /* | */ customerId = order.customerId
     /* |    | */ lines <- findLines(order.id.get)
     /* |    |    | */ customer <- findCustomer(customerId)
   } /* |    |    |    | */ yield Result(customer, order, lines)
@@ -942,10 +944,10 @@ Be sure to add _Logback_ dependency and a `logback.xml` file
 
 # Related Libraries Supported by _Slick_
 
+* [Slick-pg](https://github.com/tminglei/slick-pg) Slick extensions for _PostgreSQL_
+* [HikariCP](https://github.com/brettwooldridge/HikariCP), database connection pool
 * [Lightbend Config](https://github.com/lightbend/config), application configuration (`application.conf`)
 * [SL4J](https://www.slf4j.org/), logging facade
   * Already a dependency of _Slick_... and _Akka HTTP_
 * [Scala Logging](https://github.com/lightbend/scala-logging), recommended Scala wrapper for _SLF4J_
 * [Logback](https://logback.qos.ch/), standard implementation for _SLF4J_
-* [HikariCP](https://github.com/brettwooldridge/HikariCP), database connection pool
-* All compatible with _Akka HTTP_
