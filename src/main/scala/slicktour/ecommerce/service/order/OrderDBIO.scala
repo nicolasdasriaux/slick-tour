@@ -3,7 +3,9 @@ package slicktour.ecommerce.service.order
 import slicktour.ecommerce.db
 import slicktour.ecommerce.db.ExtendedPostgresProfile.api._
 
-object OrderDBIO {
+import scala.concurrent.ExecutionContext
+
+class OrderDBIO(implicit executionContext: ExecutionContext) {
   /**
     * Difficulty: ***
     * Hints:
@@ -13,7 +15,6 @@ object OrderDBIO {
     *   sorting by orderLineId
     */
   def findDb(id: Long): DBIO[(db.Order, Seq[(db.OrderLine, db.Item)])] = ???
-
 
   /**
     * Difficulty: *
