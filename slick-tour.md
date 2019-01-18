@@ -32,7 +32,7 @@ slidenumbers: true
 
 ---
 
-# Tailoring a _PostgreSQL_ Profile
+# Tailoring a _PostgreSQL_ Profile with _Slick-pg_
 
 ```scala
 // Extend PostgreSQL profile with java.time and Spray JSON support
